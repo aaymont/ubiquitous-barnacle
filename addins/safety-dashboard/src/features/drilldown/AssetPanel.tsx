@@ -18,6 +18,7 @@ const panelStyle: React.CSSProperties = {
   zIndex: 100,
   overflow: "auto",
   padding: "20px",
+  paddingTop: "56px",
 };
 
 const headerStyle: React.CSSProperties = {
