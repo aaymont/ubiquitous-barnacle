@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
-  base: "/ubiquitous-barnacle/addins/safety-dashboard/",
+  base: "./",
   build: {
     outDir: "dist",
     emptyOutDir: true,
