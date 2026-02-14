@@ -160,18 +160,11 @@
         return div.innerHTML;
     }
 
-    function getDeviceIdFromHash() {
-        var hash = (window.location.hash || "").replace(/^#/, "");
-        if (hash.indexOf("vehicle/") === 0) return hash.slice(8);
-        return null;
-    }
-
     function showListView() {
         var listEl = document.getElementById("listView");
         var detailEl = document.getElementById("detailView");
         if (listEl) listEl.style.display = "";
         if (detailEl) detailEl.style.display = "none";
-        window.location.hash = "";
     }
 
     function showDetailView(deviceId) {
@@ -179,7 +172,6 @@
         var detailEl = document.getElementById("detailView");
         if (listEl) listEl.style.display = "none";
         if (detailEl) detailEl.style.display = "block";
-        window.location.hash = "vehicle/" + deviceId;
         var titleEl = document.getElementById("detailTitle");
         if (titleEl) titleEl.textContent = "Distance over time – " + (deviceMap[deviceId] || deviceId);
         loadVehicleChart(deviceId);
@@ -315,8 +307,6 @@
                 var filtered = filterByGroup(aggregatedByDevice, groupId);
                 renderTable(filtered);
                 setLoading(false);
-                var deviceIdFromHash = getDeviceIdFromHash();
-                if (deviceIdFromHash) showDetailView(deviceIdFromHash);
             }, function(err) {
                 setLoading(false);
                 showMessage("Failed to load trips: " + (err && err.message ? err.message : String(err)), true);
@@ -394,9 +384,6 @@
                 showListView();
             });
         }
-        window.addEventListener("hashchange", function() {
-            if (!getDeviceIdFromHash()) showListView();
-        });
     }
 
     geotab.addin["utilizationByVehicle"] = function() {
