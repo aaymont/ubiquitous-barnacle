@@ -113,7 +113,7 @@ export function App() {
         <Filters
           filters={filters}
           onFiltersChange={setFilters}
-          safetyRules={data.safetyRules}
+          safetyRules={data.safetyRulesInRange}
           groups={data.groups}
         />
         {data.loading ? (

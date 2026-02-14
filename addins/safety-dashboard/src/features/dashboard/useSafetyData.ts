@@ -43,6 +43,8 @@ export interface SafetyDataState {
   error: string | null;
   rules: Rule[];
   safetyRules: Rule[];
+  /** Safety rules that have at least one exception in the current date range (for the rules list UI) */
+  safetyRulesInRange: Rule[];
   events: ExceptionEvent[];
   devices: Device[];
   users: User[];
@@ -59,6 +61,7 @@ const initialState: SafetyDataState = {
   error: null,
   rules: [],
   safetyRules: [],
+  safetyRulesInRange: [],
   events: [],
   devices: [],
   users: [],
@@ -89,23 +92,34 @@ export function useSafetyData(filters: SafetyFilters) {
         getGroups(api, abort),
       ]);
       const safetyRules = filterSafetyRules(rules);
-      const ruleIds = filters.ruleIds.length > 0 ? filters.ruleIds : safetyRules.map((r) => r.id);
+      const allSafetyRuleIds = safetyRules.map((r) => r.id);
 
       const searchParams: ExceptionEventSearchParams = {
         fromDate: toISODate(filters.fromDate),
         toDate: toISODate(filters.toDate),
         includeExceptionCount: true,
       };
-      if (ruleIds.length > 0) searchParams.ruleIds = ruleIds;
+      if (allSafetyRuleIds.length > 0) searchParams.ruleIds = allSafetyRuleIds;
       if (filters.groupId) {
         searchParams.deviceSearch = { groups: [{ id: filters.groupId }] };
       }
 
-      const [events, devices, users] = await Promise.all([
+      const [allEvents, devices, users] = await Promise.all([
         getExceptionEvents(api, searchParams, abort),
         getDevices(api, abort),
         getUsers(api, abort),
       ]);
+
+      const ruleIdsWithDataInRange = new Set<string>();
+      for (const e of allEvents) {
+        if (e.rule?.id) ruleIdsWithDataInRange.add(e.rule.id);
+      }
+      const safetyRulesInRange = safetyRules.filter((r) => ruleIdsWithDataInRange.has(r.id));
+
+      const events =
+        filters.ruleIds.length > 0
+          ? allEvents.filter((e) => e.rule?.id && filters.ruleIds.includes(e.rule.id))
+          : allEvents;
 
       const driverRows = aggregateByDriver(events);
       const assetRows = aggregateByAsset(events);
@@ -121,6 +135,7 @@ export function useSafetyData(filters: SafetyFilters) {
         error: null,
         rules,
         safetyRules,
+        safetyRulesInRange,
         events,
         devices,
         users,
