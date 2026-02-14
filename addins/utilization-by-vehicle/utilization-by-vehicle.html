@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Utilization by Vehicle</title>
+    <link rel="stylesheet" href="utilization-by-vehicle.css">
+</head>
+<body>
+    <div id="app">
+        <div class="controls">
+            <div class="control-row">
+                <label for="datePreset">Date range:</label>
+                <div class="preset-buttons">
+                    <button type="button" id="preset7" class="preset-btn active">Last 7 days</button>
+                    <button type="button" id="preset14" class="preset-btn">Last 14 days</button>
+                    <button type="button" id="preset30" class="preset-btn">Last 30 days</button>
+                </div>
+            </div>
+            <div class="control-row">
+                <label for="fromDate">From:</label>
+                <input type="date" id="fromDate" />
+                <label for="toDate">To:</label>
+                <input type="date" id="toDate" />
+            </div>
+            <div class="control-row">
+                <label for="groupSelect">Group:</label>
+                <select id="groupSelect">
+                    <option value="all">All vehicles</option>
+                </select>
+                <button type="button" id="refreshBtn" class="refresh-btn">Refresh</button>
+                <button type="button" id="exportCsvBtn" class="export-btn">Export CSV</button>
+            </div>
+        </div>
+        <div id="message" class="message" role="alert" aria-live="polite"></div>
+        <div id="loading" class="loading">Loading...</div>
+        <div id="tableContainer" class="table-container"></div>
+    </div>
+    <script src="utilization-by-vehicle.js"></script>
+</body>
+</html>

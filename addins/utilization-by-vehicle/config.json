@@ -1,0 +1,10 @@
+{
+  "name": "Utilization by Vehicle",
+  "supportEmail": "https://github.com/your-username/your-repo",
+  "version": "1.0.0",
+  "items": [{
+    "url": "https://your-username.github.io/your-repo/utilization-by-vehicle.html",
+    "path": "ActivityLink/",
+    "menuName": { "en": "Utilization by Vehicle" }
+  }]
+}
