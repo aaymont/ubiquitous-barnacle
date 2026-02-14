@@ -100,6 +100,8 @@ const SAFETY_KEYWORDS = [
   "cornering",
   "acceleration",
   "exception",
+  "idling",
+  "yard",
 ];
 
 export function filterSafetyRules(rules: Rule[]): Rule[] {
