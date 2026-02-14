@@ -32,7 +32,7 @@ export const defaultFilters: SafetyFilters = {
   toDate: defaultRange.to,
   groupId: null,
   ruleIds: [],
-  view: "driver",
+  view: "asset",
 };
 
 export interface SafetyDataState {
