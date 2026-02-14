@@ -123,7 +123,7 @@
 
         var html = "<table class=\"utilization-table\"><thead><tr>" +
             "<th>Vehicle</th><th class=\"num\">Distance (km)</th><th class=\"num\">Distance (mi)</th>" +
-            "<th class=\"num\">Trips</th><th class=\"num\">Driving time</th></tr></thead><tbody>";
+            "<th class=\"num\">Trips</th><th class=\"num\">Driving time</th><th></th></tr></thead><tbody>";
 
         for (var i = 0; i < rows.length; i++) {
             var r = rows[i];
@@ -131,8 +131,9 @@
             var km = r.distanceKm.toFixed(1);
             var mi = (r.distanceKm * KM_TO_MILES).toFixed(1);
             var link = "<a href=\"#\" class=\"vehicle-link\" data-device-id=\"" + r.deviceId + "\">" + escapeHtml(name) + "</a>";
+            var btn = "<button type=\"button\" class=\"view-details-btn\" data-device-id=\"" + r.deviceId + "\">View Details</button>";
             html += "<tr><td>" + link + "</td><td class=\"num\">" + km + "</td><td class=\"num\">" + mi + "</td>" +
-                "<td class=\"num\">" + r.tripCount + "</td><td class=\"num\">" + formatHours(r.drivingSeconds) + "</td></tr>";
+                "<td class=\"num\">" + r.tripCount + "</td><td class=\"num\">" + formatHours(r.drivingSeconds) + "</td><td>" + btn + "</td></tr>";
         }
         html += "</tbody></table>";
         container.innerHTML = html;
@@ -141,6 +142,12 @@
             a.addEventListener("click", function(e) {
                 e.preventDefault();
                 var id = a.getAttribute("data-device-id");
+                if (id) showDetailView(id);
+            });
+        });
+        container.querySelectorAll(".view-details-btn").forEach(function(btn) {
+            btn.addEventListener("click", function() {
+                var id = btn.getAttribute("data-device-id");
                 if (id) showDetailView(id);
             });
         });
