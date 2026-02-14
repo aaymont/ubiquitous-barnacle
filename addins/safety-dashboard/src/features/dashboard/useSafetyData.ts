@@ -14,6 +14,7 @@ import type { Rule, ExceptionEvent, Device, User } from "../../types/entities";
 import { aggregateByDriver, aggregateByAsset, topRulesByCount } from "../../utils/aggregation";
 import type { DriverRow, AssetRow, RuleCount } from "../../utils/aggregation";
 import { last30Days, toISODate } from "../../utils/dateUtils";
+import { getExceptionDurationSeconds } from "../../utils/exceptionUtils";
 import { registerAbortSignal } from "../../abortScope";
 
 export interface SafetyFilters {
@@ -106,7 +107,10 @@ export function useSafetyData(filters: SafetyFilters) {
       const driverRows = aggregateByDriver(events);
       const assetRows = aggregateByAsset(events);
       const topRules = topRulesByCount(events, 3);
-      const totalDuration = events.reduce((s, e) => s + (e.duration ?? 0), 0);
+      const totalDuration = events.reduce(
+        (s, e) => s + getExceptionDurationSeconds(e),
+        0
+      );
       const totalDistance = events.reduce((s, e) => s + (e.distance ?? 0), 0);
 
       setState({

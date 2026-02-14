@@ -1,5 +1,6 @@
 import type { ExceptionEvent } from "../types/entities";
 import { dateKey } from "./dateUtils";
+import { getExceptionDurationSeconds } from "./exceptionUtils";
 
 export interface DriverRow {
   driverId: string;
@@ -27,7 +28,7 @@ export function aggregateByDriver(events: ExceptionEvent[]): DriverRow[] {
   for (const e of events) {
     const driverId = e.driver?.id ?? "unknown";
     const row = byDriver.get(driverId);
-    const duration = e.duration ?? 0;
+    const duration = getExceptionDurationSeconds(e);
     const distance = e.distance ?? 0;
     if (!row) {
       byDriver.set(driverId, { count: 1, duration, distance, ids: [e.id] });
@@ -52,7 +53,7 @@ export function aggregateByAsset(events: ExceptionEvent[]): AssetRow[] {
   for (const e of events) {
     const deviceId = e.device?.id ?? "unknown";
     const row = byDevice.get(deviceId);
-    const duration = e.duration ?? 0;
+    const duration = getExceptionDurationSeconds(e);
     const distance = e.distance ?? 0;
     if (!row) {
       byDevice.set(deviceId, { count: 1, duration, distance, ids: [e.id] });

@@ -5,6 +5,7 @@ import type { ExceptionEvent } from "../../types/entities";
 import { dailyCounts } from "../../utils/aggregation";
 import { formatDateTime } from "../../utils/dateUtils";
 import { formatDuration, formatDistance } from "../../utils/formatUtils";
+import { getExceptionDurationSeconds } from "../../utils/exceptionUtils";
 import { TrendChart } from "./TrendChart";
 import { OpenInMyGeotabButton } from "./OpenInMyGeotabButton";
 
@@ -120,7 +121,7 @@ export function AssetPanel({
                 <tr key={e.id}>
                   <td style={tdStyle}>{formatDateTime(e.activeFrom)}</td>
                   <td style={tdStyle}>{ruleNames.get(e.rule?.id ?? "") ?? e.rule?.id ?? "—"}</td>
-                  <td style={tdStyle}>{formatDuration(e.duration)}</td>
+                  <td style={tdStyle}>{formatDuration(getExceptionDurationSeconds(e))}</td>
                   <td style={tdStyle}>{formatDistance(e.distance)}</td>
                   <td style={tdStyle}>{userNames.get(e.driver?.id ?? "") ?? e.driver?.id ?? "—"}</td>
                 </tr>
