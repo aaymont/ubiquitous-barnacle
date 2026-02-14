@@ -11,6 +11,8 @@
     var allGroups = [];
     var aggregatedByDevice = [];
     var deviceMap = {};
+    var detailChartInstance = null;
+    var DETAIL_DAYS = 31;
 
     function setLoading(visible) {
         var el = document.getElementById("loading");
@@ -139,9 +141,7 @@
             a.addEventListener("click", function(e) {
                 e.preventDefault();
                 var id = a.getAttribute("data-device-id");
-                if (id && window.parent && window.parent.location) {
-                    window.parent.location.hash = "device,id:" + id;
-                }
+                if (id) showDetailView(id);
             });
         });
     }
@@ -151,6 +151,111 @@
         var div = document.createElement("div");
         div.textContent = s;
         return div.innerHTML;
+    }
+
+    function getDeviceIdFromHash() {
+        var hash = (window.location.hash || "").replace(/^#/, "");
+        if (hash.indexOf("vehicle/") === 0) return hash.slice(8);
+        return null;
+    }
+
+    function showListView() {
+        var listEl = document.getElementById("listView");
+        var detailEl = document.getElementById("detailView");
+        if (listEl) listEl.style.display = "";
+        if (detailEl) detailEl.style.display = "none";
+        window.location.hash = "";
+    }
+
+    function showDetailView(deviceId) {
+        var listEl = document.getElementById("listView");
+        var detailEl = document.getElementById("detailView");
+        if (listEl) listEl.style.display = "none";
+        if (detailEl) detailEl.style.display = "block";
+        window.location.hash = "vehicle/" + deviceId;
+        var titleEl = document.getElementById("detailTitle");
+        if (titleEl) titleEl.textContent = "Distance over time – " + (deviceMap[deviceId] || deviceId);
+        loadVehicleChart(deviceId);
+    }
+
+    function aggregateTripsByDay(trips) {
+        var byDay = {};
+        for (var i = 0; i < trips.length; i++) {
+            var trip = trips[i];
+            var dayKey = (trip.start || trip.stop) ? new Date((trip.start || trip.stop)).toISOString().slice(0, 10) : null;
+            if (!dayKey) continue;
+            if (!byDay[dayKey]) byDay[dayKey] = 0;
+            byDay[dayKey] += trip.distance || 0;
+        }
+        var keys = Object.keys(byDay).sort();
+        return keys.map(function(k) { return { date: k, distanceKm: byDay[k] }; });
+    }
+
+    function loadVehicleChart(deviceId) {
+        if (!apiRef || !deviceId) return;
+        setLoading(true);
+        showMessage("");
+        var toDate = new Date();
+        var fromDate = new Date(toDate);
+        fromDate.setDate(fromDate.getDate() - DETAIL_DAYS);
+        apiRef.call("Get", {
+            typeName: "Trip",
+            search: {
+                deviceSearch: { id: deviceId },
+                fromDate: fromDate.toISOString(),
+                toDate: toDate.toISOString()
+            }
+        }, function(trips) {
+            setLoading(false);
+            var points = aggregateTripsByDay(trips || []);
+            if (points.length === 0) {
+                showMessage("No trip data for this vehicle in the last " + DETAIL_DAYS + " days.", true);
+            }
+            renderDistanceChart(points);
+        }, function(err) {
+            setLoading(false);
+            showMessage("Failed to load trips: " + (err && err.message ? err.message : String(err)), true);
+        });
+    }
+
+    function renderDistanceChart(series) {
+        var canvas = document.getElementById("detailChart");
+        if (!canvas || typeof Chart === "undefined") return;
+        if (detailChartInstance) {
+            detailChartInstance.destroy();
+            detailChartInstance = null;
+        }
+        var labels = series.map(function(p) { return p.date; });
+        var data = series.map(function(p) { return Math.round(p.distanceKm * 10) / 10; });
+        detailChartInstance = new Chart(canvas, {
+            type: "bar",
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: "Distance (km)",
+                    data: data,
+                    backgroundColor: "rgba(0, 102, 204, 0.6)",
+                    borderColor: "rgb(0, 102, 204)",
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: "Distance (km)" }
+                    },
+                    x: {
+                        title: { display: true, text: "Date" }
+                    }
+                }
+            }
+        });
     }
 
     function loadData() {
@@ -203,6 +308,8 @@
                 var filtered = filterByGroup(aggregatedByDevice, groupId);
                 renderTable(filtered);
                 setLoading(false);
+                var deviceIdFromHash = getDeviceIdFromHash();
+                if (deviceIdFromHash) showDetailView(deviceIdFromHash);
             }, function(err) {
                 setLoading(false);
                 showMessage("Failed to load trips: " + (err && err.message ? err.message : String(err)), true);
@@ -273,6 +380,16 @@
         if (refreshBtn) refreshBtn.addEventListener("click", loadData);
         var exportBtn = document.getElementById("exportCsvBtn");
         if (exportBtn) exportBtn.addEventListener("click", exportCsv);
+        var backLink = document.getElementById("backToList");
+        if (backLink) {
+            backLink.addEventListener("click", function(e) {
+                e.preventDefault();
+                showListView();
+            });
+        }
+        window.addEventListener("hashchange", function() {
+            if (!getDeviceIdFromHash()) showListView();
+        });
     }
 
     geotab.addin["utilizationByVehicle"] = function() {
