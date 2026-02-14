@@ -97,37 +97,67 @@ export function Filters({
           ))}
         </select>
       </div>
-      <div style={rowStyle}>
-        <span style={labelStyle}>Rules (safety)</span>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--zenith-spacing-sm, 8px)", alignItems: "center" }}>
+      <div style={{ ...rowStyle, flexDirection: "column", alignItems: "stretch" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--zenith-spacing-sm, 8px)", marginBottom: "var(--zenith-spacing-sm, 8px)" }}>
+          <span style={labelStyle}>Rules (safety)</span>
           <Button type={ButtonType.Secondary} onClick={selectAllRules} aria-label="Select all rules">
             All
           </Button>
           <Button type={ButtonType.Secondary} onClick={clearRules} aria-label="Clear rules">
             None
           </Button>
-          <select
-            multiple
-            style={{ ...inputStyle, minHeight: "80px", minWidth: "200px" }}
-            value={filters.ruleIds}
-            onChange={(e) => {
-              const selected = Array.from(e.target.selectedOptions, (o) => o.value);
-              set({ ruleIds: selected });
-            }}
-            aria-label="Rule multi-select"
-          >
-            {safetyRules.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name ?? r.id}
-              </option>
-            ))}
-          </select>
-          {safetyRules.length === 0 && (
-            <span style={{ fontSize: "var(--zenith-font-size-md, 14px)", color: "var(--zenith-neutral-600, #605E5C)" }}>
-              No safety rules found
-            </span>
-          )}
         </div>
+        {safetyRules.length === 0 ? (
+          <span style={{ fontSize: "var(--zenith-font-size-md, 14px)", color: "var(--zenith-neutral-600, #605E5C)" }}>
+            No safety rules found
+          </span>
+        ) : (
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "var(--zenith-spacing-sm, 8px)",
+              padding: "var(--zenith-spacing-sm, 8px)",
+              background: "var(--zenith-neutral-100, #EDEBE9)",
+              borderRadius: "6px",
+              minHeight: "48px",
+            }}
+            role="group"
+            aria-label="Safety rules selection"
+          >
+            {safetyRules.map((r) => {
+              const selected = filters.ruleIds.includes(r.id);
+              const label = r.name ?? r.id;
+              return (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => {
+                    const next = selected
+                      ? filters.ruleIds.filter((id) => id !== r.id)
+                      : [...filters.ruleIds, r.id];
+                    set({ ruleIds: next });
+                  }}
+                  aria-pressed={selected}
+                  aria-label={selected ? `Deselect ${label}` : `Select ${label}`}
+                  style={{
+                    padding: "6px 14px",
+                    borderRadius: "9999px",
+                    border: selected ? "none" : "1px solid var(--zenith-neutral-300, #C8C6C4)",
+                    background: selected ? "var(--zenith-primary, #0078D4)" : "#fff",
+                    color: selected ? "#fff" : "var(--zenith-neutral-900, #201F1E)",
+                    fontSize: "var(--zenith-font-size-md, 14px)",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    boxShadow: selected ? "0 1px 2px rgba(0,0,0,0.1)" : "none",
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
       <div style={rowStyle}>
         <span style={{ ...labelStyle, marginBottom: 0 }}>View</span>
