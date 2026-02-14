@@ -13,23 +13,26 @@ import type { ExceptionEventSearchParams } from "../../api/geotabApi";
 import type { Rule, ExceptionEvent, Device, User } from "../../types/entities";
 import { aggregateByDriver, aggregateByAsset, topRulesByCount } from "../../utils/aggregation";
 import type { DriverRow, AssetRow, RuleCount } from "../../utils/aggregation";
-import { last30Days, toISODate } from "../../utils/dateUtils";
+import { getDateRangeForPreset, toISODate } from "../../utils/dateUtils";
+import type { DateRangePresetId } from "../../utils/dateUtils";
 import { getExceptionDurationSeconds } from "../../utils/exceptionUtils";
 import { registerAbortSignal } from "../../abortScope";
 
 export interface SafetyFilters {
   fromDate: Date;
   toDate: Date;
+  dateRangePreset: DateRangePresetId;
   groupId: string | null;
   ruleIds: string[];
   view: "driver" | "asset";
 }
 
-const defaultRange = last30Days();
+const defaultRange = getDateRangeForPreset("last7Days");
 
 export const defaultFilters: SafetyFilters = {
   fromDate: defaultRange.from,
   toDate: defaultRange.to,
+  dateRangePreset: "last7Days",
   groupId: null,
   ruleIds: [],
   view: "asset",
