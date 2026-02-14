@@ -1,0 +1,13 @@
+{
+  "name": "Safety Dashboard",
+  "supportEmail": "https://github.com/aaymont/ubiquitous-barnacle",
+  "version": "1.0",
+  "isSigned": false,
+  "items": [
+    {
+      "url": "https://aaymont.github.io/ubiquitous-barnacle/addins/safety-dashboard/",
+      "path": "ActivityLink",
+      "menuName": { "en": "Safety Dashboard" }
+    }
+  ]
+}

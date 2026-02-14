@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Fleet Statistics</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            padding: 24px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #5b21b6 100%);
+            min-height: 100vh;
+            color: #1a1a2e;
+        }
+        h1 {
+            color: #fff;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+            margin: 0 0 24px 0;
+            font-size: 1.75rem;
+        }
+        .card {
+            background: #fff;
+            padding: 24px;
+            margin-bottom: 16px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .card h2 {
+            margin: 0 0 8px 0;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .stat {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #1e293b;
+        }
+        .stat.loading {
+            color: #94a3b8;
+            font-weight: normal;
+        }
+        .stat.error {
+            color: #dc2626;
+        }
+        .user-info {
+            font-size: 1rem;
+            color: #334155;
+        }
+        .user-info .label { color: #64748b; }
+    </style>
+</head>
+<body>
+    <h1>Fleet Statistics</h1>
+    <div class="card">
+        <h2>Total Vehicles</h2>
+        <div class="stat loading" id="vehicle-count">...</div>
+    </div>
+    <div class="card">
+        <h2>Total Drivers</h2>
+        <div class="stat loading" id="driver-count">...</div>
+    </div>
+    <div class="card">
+        <h2>Logged in as</h2>
+        <div class="user-info" id="user-info">
+            <span class="stat loading" id="user-name">...</span>
+            <div style="margin-top: 8px;"><span class="label">Database: </span><span id="database-name">...</span></div>
+        </div>
+    </div>
+
+    <script>
+    geotab.addin["fleet-stats"] = function() {
+        var apiRef = null;
+
+        function setLoading(elt) {
+            if (!elt) return;
+            elt.textContent = "...";
+            elt.className = "stat loading";
+        }
+
+        function setError(elt) {
+            if (!elt) return;
+            elt.textContent = "Error";
+            elt.className = "stat error";
+        }
+
+        function setValue(elt, value) {
+            if (!elt) return;
+            elt.textContent = value;
+            elt.className = "stat";
+        }
+
+        function updateStats() {
+            if (!apiRef) return;
+
+            var vehicleEl = document.getElementById("vehicle-count");
+            var driverEl = document.getElementById("driver-count");
+            var userNameEl = document.getElementById("user-name");
+            var databaseEl = document.getElementById("database-name");
+
+            setLoading(vehicleEl);
+            setLoading(driverEl);
+            if (userNameEl) userNameEl.textContent = "...";
+            if (databaseEl) databaseEl.textContent = "...";
+
+            apiRef.getSession(function(session) {
+                if (userNameEl) userNameEl.textContent = session.userName || "—";
+                if (databaseEl) databaseEl.textContent = session.database || "—";
+                if (userNameEl) userNameEl.className = "stat";
+            }, function() {
+                if (userNameEl) {
+                    userNameEl.textContent = "Error";
+                    userNameEl.className = "stat error";
+                }
+                if (databaseEl) databaseEl.textContent = "Error";
+            });
+
+            apiRef.call("Get", { typeName: "Device" }, function(devices) {
+                setValue(vehicleEl, devices.length);
+            }, function() {
+                setError(vehicleEl);
+            });
+
+            apiRef.call("Get", { typeName: "User", search: { isDriver: true } }, function(users) {
+                setValue(driverEl, users.length);
+            }, function() {
+                setError(driverEl);
+            });
+        }
+
+        return {
+            initialize: function(api, state, callback) {
+                apiRef = api;
+                updateStats();
+                callback();
+            },
+            focus: function(api, state) {
+                apiRef = api;
+                updateStats();
+            },
+            blur: function(api, state) {
+            }
+        };
+    };
+    </script>
+</body>
+</html>

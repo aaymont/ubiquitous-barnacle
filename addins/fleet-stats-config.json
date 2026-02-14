@@ -3,7 +3,7 @@
   "supportEmail": "https://github.com/aaymont/ubiquitous-barnacle",
   "version": "1.0.0",
   "items": [{
-    "url": "https://aaymont.github.io/ubiquitous-barnacle/addins/fleet-stats/fleet-stats.html",
+    "url": "https://aaymont.github.io/ubiquitous-barnacle/fleet-stats.html",
     "path": "ActivityLink",
     "menuName": {
       "en": "Fleet Stats"
