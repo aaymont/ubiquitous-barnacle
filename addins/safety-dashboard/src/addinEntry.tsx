@@ -1,3 +1,4 @@
+import "@geotab/zenith/dist/index.css";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import type { GeotabApi, GeotabAddInState, GeotabAddInModule } from "./types/geotab";

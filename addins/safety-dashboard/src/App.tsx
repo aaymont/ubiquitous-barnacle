@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { FeedbackProvider, Waiting } from "@geotab/zenith";
 import { useAddin } from "./context/AddinContext";
 import { useSafetyData, defaultFilters, type SafetyFilters } from "./features/dashboard/useSafetyData";
 import { KPICards } from "./features/dashboard/KPICards";
@@ -10,16 +11,16 @@ import { formatPer1000Km } from "./utils/formatUtils";
 
 const layoutStyle: React.CSSProperties = {
   minHeight: "100vh",
-  background: "#f3f4f6",
-  padding: "20px",
-  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+  background: "var(--zenith-neutral-100, #EDEBE9)",
+  padding: "var(--zenith-spacing-lg, 24px)",
+  fontFamily: "var(--zenith-font-family, 'Segoe UI', -apple-system, sans-serif)",
 };
 
 const titleStyle: React.CSSProperties = {
-  margin: "0 0 20px",
-  fontSize: "1.5rem",
+  margin: "0 0 var(--zenith-spacing-lg, 24px)",
+  fontSize: "var(--zenith-font-size-xxl, 28px)",
   fontWeight: 700,
-  color: "#111827",
+  color: "var(--zenith-neutral-900, #201F1E)",
 };
 
 export function App() {
@@ -84,81 +85,90 @@ export function App() {
     return (
       <div style={layoutStyle}>
         <h1 style={titleStyle}>Safety Dashboard</h1>
-        <p style={{ color: "#6b7280" }}>Loading add-in…</p>
+        <Waiting />
       </div>
     );
   }
 
   return (
-    <div style={layoutStyle}>
-      <h1 style={titleStyle} id="main-title">
-        Safety Dashboard
-      </h1>
-      {data.error && (
-        <div
-          role="alert"
-          style={{
-            padding: "12px 16px",
-            background: "#fef2f2",
-            color: "#b91c1c",
-            borderRadius: "8px",
-            marginBottom: "16px",
-          }}
-        >
-          {data.error}
-        </div>
-      )}
-      <Filters
-        filters={filters}
-        onFiltersChange={setFilters}
-        safetyRules={data.safetyRules}
-        groups={data.groups}
-      />
-      <KPICards
-        totalCount={data.events.length}
-        totalDuration={data.totalDuration}
-        per1000Km={per1000Km}
-        topRules={data.topRules}
-        ruleNames={ruleNames}
-        loading={data.loading}
-      />
-      <div style={{ marginTop: "20px" }}>
-        {filters.view === "driver" ? (
-          <DriverTable
-            rows={data.driverRows}
-            nameMap={userNames}
-            onSelect={setSelectedDriverId}
-          />
+    <FeedbackProvider>
+      <div style={layoutStyle}>
+        <h1 style={titleStyle} id="main-title">
+          Safety Dashboard
+        </h1>
+        {data.error && (
+          <div
+            role="alert"
+            style={{
+              marginBottom: "var(--zenith-spacing-md, 16px)",
+              padding: "var(--zenith-spacing-md, 16px)",
+              background: "var(--zenith-error, #D13438)",
+              color: "#fff",
+              borderRadius: "8px",
+            }}
+          >
+            {data.error}
+          </div>
+        )}
+        <Filters
+          filters={filters}
+          onFiltersChange={setFilters}
+          safetyRules={data.safetyRules}
+          groups={data.groups}
+        />
+        {data.loading ? (
+          <div style={{ padding: "var(--zenith-spacing-xl, 32px)", display: "flex", justifyContent: "center" }}>
+            <Waiting />
+          </div>
         ) : (
-          <AssetTable
-            rows={data.assetRows}
-            nameMap={deviceNames}
-            onSelect={setSelectedDeviceId}
+          <>
+            <KPICards
+              totalCount={data.events.length}
+              totalDuration={data.totalDuration}
+              per1000Km={per1000Km}
+              topRules={data.topRules}
+              ruleNames={ruleNames}
+            />
+            <div style={{ marginTop: "var(--zenith-spacing-lg, 24px)" }}>
+              {filters.view === "driver" ? (
+                <DriverTable
+                  rows={data.driverRows}
+                  nameMap={userNames}
+                  onSelect={setSelectedDriverId}
+                />
+              ) : (
+                <AssetTable
+                  rows={data.assetRows}
+                  nameMap={deviceNames}
+                  onSelect={setSelectedDeviceId}
+                />
+              )}
+            </div>
+          </>
+        )}
+        {selectedDriverId && (
+          <DriverPanel
+            driverId={selectedDriverId}
+            user={selectedUser}
+            events={selectedDriverEvents}
+            ruleNames={ruleNames}
+            deviceNames={deviceNames}
+            onClose={() => setSelectedDriverId(null)}
+            gotoPage={gotoPage}
+          />
+        )}
+        {selectedDeviceId && (
+          <AssetPanel
+            deviceId={selectedDeviceId}
+            device={selectedDevice}
+            events={selectedAssetEvents}
+            ruleNames={ruleNames}
+            userNames={userNames}
+            onClose={() => setSelectedDeviceId(null)}
+            gotoPage={gotoPage}
           />
         )}
       </div>
-      {selectedDriverId && (
-        <DriverPanel
-          driverId={selectedDriverId}
-          user={selectedUser}
-          events={selectedDriverEvents}
-          ruleNames={ruleNames}
-          deviceNames={deviceNames}
-          onClose={() => setSelectedDriverId(null)}
-          gotoPage={gotoPage}
-        />
-      )}
-      {selectedDeviceId && (
-        <AssetPanel
-          deviceId={selectedDeviceId}
-          device={selectedDevice}
-          events={selectedAssetEvents}
-          ruleNames={ruleNames}
-          userNames={userNames}
-          onClose={() => setSelectedDeviceId(null)}
-          gotoPage={gotoPage}
-        />
-      )}
-    </div>
+    </FeedbackProvider>
   );
 }

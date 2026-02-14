@@ -1,50 +1,38 @@
 import React from "react";
+import { Button, ButtonType } from "@geotab/zenith";
 import type { SafetyFilters } from "./useSafetyData";
 import type { Rule } from "../../types/entities";
 
-const formRow: React.CSSProperties = {
-  display: "flex",
-  flexWrap: "wrap",
-  alignItems: "center",
-  gap: "12px 20px",
-  marginBottom: "12px",
+const sectionStyle: React.CSSProperties = {
+  background: "#fff",
+  padding: "var(--zenith-spacing-md, 16px) var(--zenith-spacing-lg, 24px)",
+  borderRadius: "8px",
+  border: "1px solid var(--zenith-neutral-100, #EDEBE9)",
+  marginBottom: "var(--zenith-spacing-md, 16px)",
 };
 
-const labelStyle: React.CSSProperties = {
-  fontSize: "0.875rem",
-  fontWeight: 500,
-  color: "#374151",
-  marginRight: "6px",
+const rowStyle: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  alignItems: "flex-end",
+  gap: "var(--zenith-spacing-md, 16px)",
+  marginBottom: "var(--zenith-spacing-md, 16px)",
 };
 
 const inputStyle: React.CSSProperties = {
-  padding: "8px 12px",
-  border: "1px solid #d1d5db",
-  borderRadius: "6px",
-  fontSize: "0.875rem",
+  padding: "var(--zenith-spacing-sm, 8px) var(--zenith-spacing-md, 16px)",
+  border: "1px solid var(--zenith-neutral-100, #EDEBE9)",
+  borderRadius: "4px",
+  fontSize: "var(--zenith-font-size-md, 14px)",
   minWidth: "140px",
 };
 
-const selectMulti: React.CSSProperties = {
-  ...inputStyle,
-  minHeight: "80px",
-  minWidth: "200px",
-};
-
-const buttonStyle: React.CSSProperties = {
-  padding: "8px 16px",
-  border: "1px solid #d1d5db",
-  borderRadius: "6px",
-  background: "#f9fafb",
-  fontSize: "0.875rem",
-  cursor: "pointer",
-};
-
-const buttonActive: React.CSSProperties = {
-  ...buttonStyle,
-  background: "#2563eb",
-  color: "#fff",
-  borderColor: "#2563eb",
+const labelStyle: React.CSSProperties = {
+  display: "block",
+  fontSize: "var(--zenith-font-size-md, 14px)",
+  fontWeight: 500,
+  color: "var(--zenith-neutral-900, #201F1E)",
+  marginBottom: "var(--zenith-spacing-xs, 4px)",
 };
 
 export function Filters({
@@ -65,8 +53,8 @@ export function Filters({
   const clearRules = () => set({ ruleIds: [] });
 
   return (
-    <section aria-label="Filters" style={{ background: "#fff", padding: "16px 20px", borderRadius: "8px", border: "1px solid #e5e7eb", marginBottom: "16px" }}>
-      <div style={formRow}>
+    <section aria-label="Filters" style={sectionStyle}>
+      <div style={rowStyle}>
         <label style={labelStyle} htmlFor="sd-from">
           From
         </label>
@@ -90,7 +78,7 @@ export function Filters({
           aria-label="To date"
         />
       </div>
-      <div style={formRow}>
+      <div style={rowStyle}>
         <label style={labelStyle} htmlFor="sd-group">
           Group
         </label>
@@ -109,18 +97,18 @@ export function Filters({
           ))}
         </select>
       </div>
-      <div style={formRow}>
+      <div style={rowStyle}>
         <span style={labelStyle}>Rules (safety)</span>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
-          <button type="button" style={buttonStyle} onClick={selectAllRules} aria-label="Select all rules">
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--zenith-spacing-sm, 8px)", alignItems: "center" }}>
+          <Button type={ButtonType.Secondary} onClick={selectAllRules} aria-label="Select all rules">
             All
-          </button>
-          <button type="button" style={buttonStyle} onClick={clearRules} aria-label="Clear rules">
+          </Button>
+          <Button type={ButtonType.Secondary} onClick={clearRules} aria-label="Clear rules">
             None
-          </button>
+          </Button>
           <select
             multiple
-            style={selectMulti}
+            style={{ ...inputStyle, minHeight: "80px", minWidth: "200px" }}
             value={filters.ruleIds}
             onChange={(e) => {
               const selected = Array.from(e.target.selectedOptions, (o) => o.value);
@@ -134,29 +122,31 @@ export function Filters({
               </option>
             ))}
           </select>
-          {safetyRules.length === 0 && <span style={{ fontSize: "0.875rem", color: "#6b7280" }}>No safety rules found</span>}
+          {safetyRules.length === 0 && (
+            <span style={{ fontSize: "var(--zenith-font-size-md, 14px)", color: "var(--zenith-neutral-600, #605E5C)" }}>
+              No safety rules found
+            </span>
+          )}
         </div>
       </div>
-      <div style={formRow}>
-        <span style={labelStyle}>View</span>
-        <button
-          type="button"
-          style={filters.view === "driver" ? buttonActive : buttonStyle}
+      <div style={rowStyle}>
+        <span style={{ ...labelStyle, marginBottom: 0 }}>View</span>
+        <Button
+          type={filters.view === "driver" ? ButtonType.Primary : ButtonType.Secondary}
           onClick={() => set({ view: "driver" })}
           aria-pressed={filters.view === "driver"}
           aria-label="View by driver"
         >
           By Driver
-        </button>
-        <button
-          type="button"
-          style={filters.view === "asset" ? buttonActive : buttonStyle}
+        </Button>
+        <Button
+          type={filters.view === "asset" ? ButtonType.Primary : ButtonType.Secondary}
           onClick={() => set({ view: "asset" })}
           aria-pressed={filters.view === "asset"}
           aria-label="View by asset"
         >
           By Asset
-        </button>
+        </Button>
       </div>
     </section>
   );

@@ -2,52 +2,45 @@ import React from "react";
 import type { DriverRow, AssetRow } from "../../utils/aggregation";
 import { formatDuration, formatDistance } from "../../utils/formatUtils";
 
-const tableWrap: React.CSSProperties = {
+const wrapStyle: React.CSSProperties = {
   overflowX: "auto",
   background: "#fff",
   borderRadius: "8px",
-  border: "1px solid #e5e7eb",
+  border: "1px solid var(--zenith-neutral-100, #EDEBE9)",
 };
 
 const tableStyle: React.CSSProperties = {
   width: "100%",
   borderCollapse: "collapse",
-  fontSize: "0.875rem",
+  fontSize: "var(--zenith-font-size-md, 14px)",
 };
 
 const thStyle: React.CSSProperties = {
   textAlign: "left",
-  padding: "12px 16px",
+  padding: "var(--zenith-spacing-md, 16px)",
   fontWeight: 600,
-  color: "#374151",
-  borderBottom: "2px solid #e5e7eb",
-  background: "#f9fafb",
+  color: "var(--zenith-neutral-900, #201F1E)",
+  borderBottom: "2px solid var(--zenith-neutral-100, #EDEBE9)",
+  background: "var(--zenith-neutral-100, #EDEBE9)",
 };
 
 const tdStyle: React.CSSProperties = {
-  padding: "12px 16px",
-  borderBottom: "1px solid #f3f4f6",
-  color: "#111827",
+  padding: "var(--zenith-spacing-md, 16px)",
+  borderBottom: "1px solid var(--zenith-neutral-100, #EDEBE9)",
+  color: "var(--zenith-neutral-900, #201F1E)",
 };
 
 const rowButton: React.CSSProperties = {
   width: "100%",
-  padding: "12px 16px",
+  padding: "var(--zenith-spacing-md, 16px)",
   border: "none",
   background: "none",
   cursor: "pointer",
   textAlign: "left",
   fontSize: "inherit",
-  fontFamily: "inherit",
-  display: "flex",
-  alignItems: "center",
-  gap: "8px",
+  fontFamily: "var(--zenith-font-family, 'Segoe UI', sans-serif)",
+  color: "var(--zenith-primary, #0078D4)",
 };
-
-const rowButtonHover = (): React.CSSProperties => ({
-  ...rowButton,
-  background: "#f3f4f6",
-});
 
 export function DriverTable({
   rows,
@@ -59,7 +52,7 @@ export function DriverTable({
   onSelect: (driverId: string) => void;
 }) {
   return (
-    <div style={tableWrap}>
+    <div style={wrapStyle}>
       <table style={tableStyle} role="grid" aria-label="Safety exceptions by driver">
         <thead>
           <tr>
@@ -72,7 +65,7 @@ export function DriverTable({
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={4} style={{ ...tdStyle, color: "#6b7280", textAlign: "center" }}>
+              <td colSpan={4} style={{ ...tdStyle, color: "var(--zenith-neutral-600, #605E5C)", textAlign: "center" }}>
                 No data
               </td>
             </tr>
@@ -83,8 +76,6 @@ export function DriverTable({
                   <button
                     type="button"
                     style={rowButton}
-                    onMouseOver={(e) => Object.assign(e.currentTarget.style, rowButtonHover())}
-                    onMouseOut={(e) => Object.assign(e.currentTarget.style, rowButton)}
                     onClick={() => onSelect(r.driverId)}
                     aria-label={`Open details for ${nameMap.get(r.driverId) ?? r.driverId}`}
                   >
@@ -113,7 +104,7 @@ export function AssetTable({
   onSelect: (deviceId: string) => void;
 }) {
   return (
-    <div style={tableWrap}>
+    <div style={wrapStyle}>
       <table style={tableStyle} role="grid" aria-label="Safety exceptions by asset">
         <thead>
           <tr>
@@ -126,7 +117,7 @@ export function AssetTable({
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={4} style={{ ...tdStyle, color: "#6b7280", textAlign: "center" }}>
+              <td colSpan={4} style={{ ...tdStyle, color: "var(--zenith-neutral-600, #605E5C)", textAlign: "center" }}>
                 No data
               </td>
             </tr>
@@ -137,8 +128,6 @@ export function AssetTable({
                   <button
                     type="button"
                     style={rowButton}
-                    onMouseOver={(e) => Object.assign(e.currentTarget.style, rowButtonHover())}
-                    onMouseOut={(e) => Object.assign(e.currentTarget.style, rowButton)}
                     onClick={() => onSelect(r.deviceId)}
                     aria-label={`Open details for ${nameMap.get(r.deviceId) ?? r.deviceId}`}
                   >

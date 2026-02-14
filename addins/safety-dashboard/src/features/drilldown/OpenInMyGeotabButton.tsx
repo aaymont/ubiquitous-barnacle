@@ -1,15 +1,4 @@
-import React from "react";
-
-const btnStyle: React.CSSProperties = {
-  padding: "8px 14px",
-  border: "1px solid #2563eb",
-  borderRadius: "6px",
-  background: "#2563eb",
-  color: "#fff",
-  fontSize: "0.875rem",
-  cursor: "pointer",
-  textDecoration: "none",
-};
+import { Button, ButtonType } from "@geotab/zenith";
 
 export function OpenInMyGeotabButton({
   label,
@@ -50,8 +39,8 @@ export function OpenInMyGeotabButton({
   }
 
   return (
-    <button type="button" style={btnStyle} onClick={handleClick} aria-label={label}>
+    <Button type={ButtonType.Primary} onClick={handleClick} aria-label={label}>
       {label}
-    </button>
+    </Button>
   );
 }
