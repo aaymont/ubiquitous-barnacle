@@ -3,6 +3,8 @@
 (function () {
     "use strict";
 
+    var CACHE_BUST = "2"; /* Bump when deploying; also update ?v= on styles.css and addin.js in index.html */
+
     var apiRef = null;
     var POLL_INTERVAL_MS = 5000;
     var DEFAULT_TRIPS_COUNT = 10;
