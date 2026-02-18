@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Safety Report</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="report-container">
+        <header class="header">
+            <h1 class="header-title">Safety Report</h1>
+        </header>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="device-select">Device</label>
+                <select id="device-select" aria-label="Select device">
+                    <option value="">— Select device —</option>
+                </select>
+            </div>
+            <button type="button" id="refresh-btn" class="btn btn-primary">Refresh</button>
+            <div class="control-group toggle-group">
+                <label for="presentation-mode" class="toggle-label">Presentation Mode</label>
+                <input type="checkbox" id="presentation-mode" checked aria-label="Presentation mode (inactivity fade)">
+            </div>
+            <div class="control-group">
+                <span id="inactivity-label" class="inactivity-label">Inactivity: —</span>
+            </div>
+        </div>
+
+        <div class="cards-grid">
+            <section class="card" aria-labelledby="live-status-heading">
+                <h2 id="live-status-heading" class="card-title">Live Status</h2>
+                <div id="live-status-content" class="card-content">
+                    <p class="placeholder">Select a device to view status.</p>
+                </div>
+                <div id="live-status-loading" class="loading-state" hidden>
+                    <p>Loading…</p>
+                </div>
+                <div id="live-status-error" class="error-state" hidden>
+                    <p class="error-message"></p>
+                    <details class="error-details">
+                        <summary>Technical details</summary>
+                        <pre class="error-pre"></pre>
+                    </details>
+                </div>
+            </section>
+
+            <section class="card" aria-labelledby="safety-summary-heading">
+                <h2 id="safety-summary-heading" class="card-title">Safety Summary</h2>
+                <div class="card-content">
+                    <p>Safety metrics and summaries will be computed and displayed here in a future update. This card shows live device status only for now.</p>
+                </div>
+            </section>
+
+            <section class="card" aria-labelledby="notes-heading">
+                <h2 id="notes-heading" class="card-title">Notes</h2>
+                <div class="card-content">
+                    <textarea id="notes-textarea" rows="4" placeholder="Notes (stored in memory only)…"></textarea>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <div id="inactivity-overlay" class="overlay" aria-hidden="true">
+        <div class="overlay-inner">
+            <div id="countdown-ring-container" class="ring-container hidden">
+                <svg id="countdown-svg" class="countdown-ring" viewBox="0 0 120 120" aria-hidden="true">
+                    <circle class="ring-bg" cx="60" cy="60" r="54" fill="none" stroke-width="6"/>
+                    <circle id="countdown-ring" class="ring-progress" cx="60" cy="60" r="54" fill="none" stroke-width="6"
+                        stroke-dasharray="339.292" stroke-dashoffset="0"/>
+                </svg>
+                <span id="countdown-text" class="countdown-text">4</span>
+            </div>
+            <div id="generator-section" class="generator-section hidden">
+                <p class="generator-instruction">Move your mouse around the wheel and click to power the generator. Keep it moving to keep the screen on.</p>
+                <div id="power-meter-label" class="power-label">Generator Power</div>
+                <div class="wheel-container">
+                    <svg id="wheel-svg" class="wheel-svg" viewBox="0 0 200 200" aria-label="Power generator wheel">
+                        <defs>
+                            <circle id="wheel-track-inner" cx="100" cy="100" r="75" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="12"/>
+                            <circle id="wheel-track-outer" cx="100" cy="100" r="85" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="8"/>
+                        </defs>
+                        <use href="#wheel-track-outer" class="wheel-outer"/>
+                        <use href="#wheel-track-inner" class="wheel-inner"/>
+                        <g id="wheel-spokes" transform="translate(100,100)">
+                            <line x1="0" y1="0" x2="0" y2="-70" stroke="rgba(255,255,255,0.4)" stroke-width="2"/>
+                            <line x1="0" y1="0" x2="49.5" y2="49.5" stroke="rgba(255,255,255,0.4)" stroke-width="2"/>
+                            <line x1="0" y1="0" x2="70" y2="0" stroke="rgba(255,255,255,0.4)" stroke-width="2"/>
+                            <line x1="0" y1="0" x2="49.5" y2="-49.5" stroke="rgba(255,255,255,0.4)" stroke-width="2"/>
+                            <line x1="0" y1="0" x2="-49.5" y2="49.5" stroke="rgba(255,255,255,0.4)" stroke-width="2"/>
+                            <line x1="0" y1="0" x2="-70" y2="0" stroke="rgba(255,255,255,0.4)" stroke-width="2"/>
+                            <line x1="0" y1="0" x2="-49.5" y2="-49.5" stroke="rgba(255,255,255,0.4)" stroke-width="2"/>
+                            <line x1="0" y1="0" x2="0" y2="70" stroke="rgba(255,255,255,0.4)" stroke-width="2"/>
+                        </g>
+                        <circle cx="100" cy="100" r="54" fill="none" stroke="rgba(0,0,0,0.3)" stroke-width="4"/>
+                        <circle id="power-ring-bg" cx="100" cy="100" r="48" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="6"/>
+                        <circle id="power-ring" class="power-ring" cx="100" cy="100" r="48" fill="none" stroke="rgba(100,200,255,0.9)" stroke-width="6"
+                            stroke-dasharray="301.593" stroke-dashoffset="301.593"/>
+                    </svg>
+                </div>
+                <div id="power-percent" class="power-percent">0%</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="addin.js"></script>
+</body>
+</html>

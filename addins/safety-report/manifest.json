@@ -1,0 +1,10 @@
+{
+  "name": "Safety Report",
+  "supportEmail": "https://github.com/aaymont/ubiquitous-barnacle",
+  "version": "1.0.0",
+  "items": [{
+    "url": "https://aaymont.github.io/ubiquitous-barnacle/addins/safety-report/index.html",
+    "path": "ActivityLink/",
+    "menuName": { "en": "Safety Report" }
+  }]
+}
