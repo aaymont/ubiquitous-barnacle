@@ -428,12 +428,10 @@
                     var gapStart = new Date(dayTrips[s].stop).getTime();
                     var gapEnd = new Date(dayTrips[s + 1].start).getTime();
                     var gapMs = gapEnd - gapStart;
-                    if (gapMs >= STOP_THRESHOLD_MS) {
-                        stops.push({
-                            durationMs: gapMs,
-                            position: U.getPositionAtTime(logs, gapStart)
-                        });
-                    }
+                    if (gapMs < STOP_THRESHOLD_MS) continue;
+                    var pos = U.getPositionAtTime(logs, gapStart);
+                    if (startHomeZone && pos && pos.lat != null && pos.lng != null && U.pointInZone(pos.lat, pos.lng, startHomeZone)) continue;
+                    stops.push({ durationMs: gapMs, position: pos });
                 }
                 var stopCount = stops.length;
                 var totalStoppedMs = 0;
@@ -443,7 +441,6 @@
                     var pos = stops[sl].position;
                     var durationMs = stops[sl].durationMs;
                     if (!pos || pos.lat == null || pos.lng == null) continue;
-                    if (startHomeZone && U.pointInZone(pos.lat, pos.lng, startHomeZone)) continue;
                     var zoneName = U.findZoneAtPoint(pos.lat, pos.lng, allZones, startHomeZone ? startHomeZone.id : null);
                     if (zoneName) {
                         locationParts.push({ display: zoneName, durationMs: durationMs });
