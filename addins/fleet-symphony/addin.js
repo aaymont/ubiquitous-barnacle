@@ -3,7 +3,7 @@
 (function () {
     "use strict";
 
-    var CACHE_BUST = "2"; /* Bump when deploying; also update ?v= on styles.css and addin.js in index.html */
+    var CACHE_BUST = "3"; /* Bump when deploying; also update ?v= on styles.css and addin.js in index.html */
 
     var apiRef = null;
     var POLL_INTERVAL_MS = 5000;
@@ -675,6 +675,8 @@
         return {
             initialize: function (api, state, callback) {
                 apiRef = api;
+                var versionEl = getEl("app-version");
+                if (versionEl) versionEl.textContent = "v" + CACHE_BUST;
                 loadDevices(api);
                 bindUI(api);
                 showMidiWarning();

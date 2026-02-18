@@ -4,14 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Fleet Symphony</title>
-    <!-- Cache bust: bump ?v= on the link and script below when deploying (e.g. v=3) -->
-    <link rel="stylesheet" href="styles.css?v=2">
+    <!-- Cache bust: bump ?v= on the link and script below when deploying -->
+    <link rel="stylesheet" href="styles.css?v=3">
 </head>
 <body>
     <div id="app">
         <header class="header">
             <h1 class="header-title">Fleet Symphony</h1>
-            <p class="header-subtitle">Safety &amp; Trip Sonification</p>
+            <p class="header-subtitle">Safety &amp; Trip Sonification <span id="app-version" class="header-version" aria-label="App version">—</span></p>
         </header>
 
         <div class="layout">
@@ -99,6 +99,6 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
-    <script src="addin.js?v=2"></script>
+    <script src="addin.js?v=3"></script>
 </body>
 </html>

@@ -54,6 +54,12 @@ body {
     color: var(--text-muted);
 }
 
+.header-version {
+    margin-left: 0.35em;
+    font-weight: 600;
+    color: var(--accent);
+}
+
 .layout {
     display: grid;
     grid-template-columns: 280px 1fr;
