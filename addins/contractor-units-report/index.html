@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Contractor Units Activity Report</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="report-container">
+        <header class="header">
+            <h1 class="header-title">Contractor Units Activity Report</h1>
+            <p class="header-subtitle" id="header-subtitle">Group: Contractor Units (b27A5). Select a timeframe and generate.</p>
+        </header>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="timeframe-preset">Timeframe</label>
+                <select id="timeframe-preset" aria-label="Timeframe preset">
+                    <option value="thisMonth">This month</option>
+                    <option value="lastMonth">Last month</option>
+                    <option value="custom">Custom range</option>
+                </select>
+            </div>
+            <div class="control-group custom-range" id="custom-range-group">
+                <label for="from-date">From</label>
+                <input type="date" id="from-date" aria-label="Start date">
+                <label for="to-date">To</label>
+                <input type="date" id="to-date" aria-label="End date">
+            </div>
+            <div class="control-group">
+                <button type="button" id="generate-btn" class="btn btn-primary">Generate</button>
+            </div>
+        </div>
+
+        <div id="progress-section" class="progress-section hidden">
+            <p id="progress-text">Preparing…</p>
+        </div>
+
+        <div id="message-section" class="message-section hidden">
+            <p id="message-text" class="message-text"></p>
+            <details id="message-details" class="message-details hidden">
+                <summary>Technical details</summary>
+                <pre id="message-pre" class="message-pre"></pre>
+            </details>
+        </div>
+
+        <div id="preview-section" class="preview-section hidden">
+            <h2 class="card-title">Preview (first 200 rows)</h2>
+            <div class="table-wrap">
+                <table class="report-table" id="preview-table" aria-label="Report preview">
+                    <thead id="preview-thead">
+                    </thead>
+                    <tbody id="preview-tbody">
+                    </tbody>
+                </table>
+            </div>
+            <div class="export-wrap">
+                <button type="button" id="export-excel-btn" class="btn btn-primary" disabled>Export to Excel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="addin.js"></script>
+</body>
+</html>

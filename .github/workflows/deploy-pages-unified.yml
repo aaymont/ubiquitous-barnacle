@@ -66,13 +66,14 @@ jobs:
 
       - name: Assemble _site artifact
         run: |
-          mkdir -p _site/addins/{peggle-kpi-pinball,safety-dashboard,fleet-symphony,safety-report,utilization-by-vehicle}
+          mkdir -p _site/addins/{peggle-kpi-pinball,safety-dashboard,fleet-symphony,safety-report,utilization-by-vehicle,contractor-units-report}
 
           cp -r addins/peggle-kpi-pinball/dist/* _site/addins/peggle-kpi-pinball/
           cp -r addins/safety-dashboard/dist/* _site/addins/safety-dashboard/
           cp -r addins/fleet-symphony/* _site/addins/fleet-symphony/
           cp -r addins/safety-report/* _site/addins/safety-report/
           cp -r addins/utilization-by-vehicle/* _site/addins/utilization-by-vehicle/
+          cp -r addins/contractor-units-report/* _site/addins/contractor-units-report/
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
