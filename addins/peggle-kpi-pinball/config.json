@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "items": [
     {
-      "url": "https://aaymont.github.io/ubiquitous-barnacle/addins/peggle-kpi-pinball/",
+      "url": "https://aaymont.github.io/ubiquitous-barnacle/addins/peggle-kpi-pinball/?v=1.0.0",
       "path": "ActivityLink/",
       "menuName": { "en": "Peggle KPI Pinball" }
     }

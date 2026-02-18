@@ -85,10 +85,10 @@ Edit `pegBoardBuilder.ts` → `buildPegLayout()` to adjust cluster positions and
 
 ### Caching
 
-If updates don’t appear after deploy, add a version query to the manifest URL:
+If updates don’t appear after deploy, the deploy workflow adds cache busting via git SHA; bump the version query to force refresh:
 
 ```json
-"url": "https://aaymont.github.io/ubiquitous-barnacle/addins/peggle-kpi-pinball/?v=2"
+"url": "https://aaymont.github.io/ubiquitous-barnacle/addins/peggle-kpi-pinball/?v=1.0.1"
 ```
 
 ### Add-In Load Issues

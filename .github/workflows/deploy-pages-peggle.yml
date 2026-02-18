@@ -39,6 +39,25 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Add cache busting to manifest
+        run: |
+          MANIFEST="addins/peggle-kpi-pinball/dist/manifest.json"
+          if [ -f "$MANIFEST" ]; then
+            node -e "
+              const fs = require('fs');
+              const sha = process.env.GITHUB_SHA || '';
+              const cacheBust = sha.slice(0, 7) || Date.now().toString(36);
+              const m = JSON.parse(fs.readFileSync(process.env.MANIFEST, 'utf8'));
+              const base = m.items[0].url.replace(/[?].*$/, '');
+              m.items[0].url = base + '?v=' + cacheBust;
+              fs.writeFileSync(process.env.MANIFEST, JSON.stringify(m, null, 2));
+            "
+          fi
+        env:
+          MANIFEST: addins/peggle-kpi-pinball/dist/manifest.json
+          GITHUB_SHA: ${{ github.sha }}
+        working-directory: ${{ github.workspace }}
+
       - name: Prepare artifact for addins/peggle-kpi-pinball path
         run: |
           mkdir -p _site/addins/peggle-kpi-pinball
