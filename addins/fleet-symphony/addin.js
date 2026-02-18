@@ -3,7 +3,7 @@
 (function () {
     "use strict";
 
-    var CACHE_BUST = "4"; /* Bump when deploying; also update ?v= on styles.css, music.js, and addin.js in index.html */
+    var CACHE_BUST = "5"; /* Bump when deploying; also update ?v= on styles.css, music.js, and addin.js in index.html */
 
     var apiRef = null;
     var POLL_INTERVAL_MS = 5000;
@@ -187,11 +187,22 @@
         return [rootMidi + r, rootMidi + fifth, rootMidi + third, rootMidi + fifth];
     }
 
-    function startClassicalLoop(trips, exceptions, deviceName) {
+    function startClassicalLoop(tripsOrName, exceptionsOrCount, deviceNameOrSummary) {
         if (typeof Tone === "undefined" || !audioStarted) return;
         Tone.Transport.cancel();
         if (window.FleetSymphonyMusic) window.FleetSymphonyMusic.stopLoop();
-        var exceptionCount = exceptions ? exceptions.length : 0;
+        var exceptionCount;
+        var deviceName;
+        var lastTripSummary;
+        if (typeof exceptionsOrCount === "number" && typeof tripsOrName === "string") {
+            deviceName = tripsOrName;
+            exceptionCount = exceptionsOrCount;
+            lastTripSummary = deviceNameOrSummary != null ? deviceNameOrSummary : "—";
+        } else {
+            deviceName = deviceNameOrSummary;
+            exceptionCount = exceptionsOrCount ? exceptionsOrCount.length : 0;
+            lastTripSummary = tripsOrName && tripsOrName.length ? (tripsOrName[tripsOrName.length - 1].distance != null ? tripsOrName[tripsOrName.length - 1].distance.toFixed(1) + " km" : "—") : "—";
+        }
         var dark = darknessFromExceptions(exceptionCount);
         var isDark = dark >= 0.5;
         var rootMidi = ROOT_MIDI + (hashString(deviceName) % 12);
@@ -206,10 +217,36 @@
                 bass: bassSynth
             });
         }
-        var lastTripSummary = trips && trips.length ? (trips[trips.length - 1].distance != null ? trips[trips.length - 1].distance.toFixed(1) + " km" : "—") : "—";
         var moodLabel = isDark ? "Minor (dark)" : "Major (light)";
         if (exceptionCount > 0) moodLabel = moodLabel + " (" + exceptionCount + " ex)";
         updateNowPlayingCards(bpm, keyFromVehicleName(deviceName), moodLabel, lastTripSummary);
+    }
+
+    function playVehicleFromTable(deviceId, deviceName, exceptionCount, lastTripSummary, api) {
+        function doStart() {
+            if (!audioStarted) {
+                Tone.start().then(function () {
+                    audioStarted = true;
+                    if (!initAudio()) return;
+                    var vol = getEl("volume-slider") ? parseInt(getEl("volume-slider").value, 10) : 25;
+                    setMasterVolume(vol);
+                    drawMeter();
+                    transportStarted = true;
+                    Tone.Transport.start();
+                    startClassicalLoop(deviceName, exceptionCount, lastTripSummary);
+                    if (getEl("btn-pause")) getEl("btn-pause").disabled = false;
+                    if (getEl("btn-stop")) getEl("btn-stop").disabled = false;
+                });
+            } else {
+                transportStarted = true;
+                Tone.Transport.start();
+                startClassicalLoop(deviceName, exceptionCount, lastTripSummary);
+                if (getEl("btn-pause")) getEl("btn-pause").disabled = false;
+                if (getEl("btn-stop")) getEl("btn-stop").disabled = false;
+            }
+        }
+        if (typeof Tone === "undefined") return;
+        doStart();
     }
 
     function scheduleLiveDriving(status) {
@@ -309,9 +346,80 @@
                 opt.textContent = (d.name != null ? d.name : d.id);
                 select.appendChild(opt);
             }
+            loadVehiclesTable(api, devices);
         }, function (err) {
             console.error("Fleet Symphony: load devices", err);
         });
+    }
+
+    function loadVehiclesTable(api, devices) {
+        var tbody = getEl("vehicles-tbody");
+        if (!tbody) return;
+        if (!devices || !devices.length) {
+            tbody.innerHTML = '<tr><td colspan="5" class="placeholder">No devices.</td></tr>';
+            return;
+        }
+        var toDate = new Date();
+        var fromDate = new Date();
+        fromDate.setDate(fromDate.getDate() - 7);
+        var fromStr = fromDate.toISOString();
+        var toStr = toDate.toISOString();
+        var calls = [];
+        var i;
+        for (i = 0; i < devices.length; i++) {
+            var devId = devices[i].id;
+            calls.push(["Get", { typeName: "ExceptionEvent", search: { deviceSearch: { id: devId }, fromDate: fromStr, toDate: toStr }, resultsLimit: 200 }]);
+            calls.push(["Get", { typeName: "Trip", search: { deviceSearch: { id: devId }, fromDate: fromStr, toDate: toStr }, resultsLimit: 10 }]);
+        }
+        api.multiCall(calls, function (results) {
+            tbody.innerHTML = "";
+            for (i = 0; i < devices.length; i++) {
+                var d = devices[i];
+                var name = (d.name != null ? d.name : d.id);
+                var key = keyFromVehicleName(name);
+                var excList = results[i * 2] || [];
+                var tripList = results[i * 2 + 1] || [];
+                var excCount = excList.length;
+                var dark = darknessFromExceptions(excCount);
+                var moodLabel = dark >= 0.5 ? "Minor (dark)" : "Major (light)";
+                if (excCount > 0) moodLabel = moodLabel + " (" + excCount + " ex)";
+                var lastTrip = "—";
+                if (tripList.length > 0) {
+                    tripList.sort(function (a, b) {
+                        var ta = a.start ? new Date(a.start).getTime() : 0;
+                        var tb = b.start ? new Date(b.start).getTime() : 0;
+                        return tb - ta;
+                    });
+                    lastTrip = tripList[0].distance != null ? tripList[0].distance.toFixed(1) + " km" : "—";
+                }
+                var tr = document.createElement("tr");
+                tr.innerHTML =
+                    "<td>" + escapeHtml(name) + "</td>" +
+                    "<td><button type=\"button\" class=\"btn btn-primary btn-play\" data-device-id=\"" + escapeHtml(d.id) + "\" data-device-name=\"" + escapeHtml(name) + "\" data-exception-count=\"" + excCount + "\" data-last-trip=\"" + escapeHtml(lastTrip) + "\" aria-label=\"Play " + escapeHtml(name) + "\">Play</button></td>" +
+                    "<td>" + escapeHtml(key) + "</td>" +
+                    "<td>" + escapeHtml(moodLabel) + "</td>" +
+                    "<td>" + escapeHtml(lastTrip) + "</td>";
+                tbody.appendChild(tr);
+            }
+            bindVehiclePlayButtons(api);
+        }, function (err) {
+            tbody.innerHTML = '<tr><td colspan="5" class="placeholder">Could not load vehicle data.</td></tr>';
+        });
+    }
+
+    function bindVehiclePlayButtons(api) {
+        var tbody = getEl("vehicles-tbody");
+        if (!tbody) return;
+        var buttons = tbody.querySelectorAll(".btn-play");
+        for (var i = 0; i < buttons.length; i++) {
+            buttons[i].onclick = function () {
+                var id = this.getAttribute("data-device-id");
+                var name = this.getAttribute("data-device-name");
+                var count = parseInt(this.getAttribute("data-exception-count"), 10) || 0;
+                var lastTrip = this.getAttribute("data-last-trip") || "—";
+                playVehicleFromTable(id, name, count, lastTrip, api);
+            };
+        }
     }
 
     function fetchStatus(api, deviceId, onResult) {

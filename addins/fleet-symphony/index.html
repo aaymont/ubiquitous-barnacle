@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Fleet Symphony</title>
     <!-- Cache bust: bump ?v= on link and scripts when deploying -->
-    <link rel="stylesheet" href="styles.css?v=4">
+    <link rel="stylesheet" href="styles.css?v=5">
 </head>
 <body>
     <div id="app">
@@ -67,6 +67,25 @@
             </aside>
 
             <main class="viz-panel">
+                <section class="card vehicles-card">
+                    <h2 class="card-title">Vehicles</h2>
+                    <div class="table-wrap">
+                        <table class="vehicles-table" aria-label="Vehicles with play and safety info">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Vehicle</th>
+                                    <th scope="col">Play</th>
+                                    <th scope="col">Key</th>
+                                    <th scope="col">Safety mood</th>
+                                    <th scope="col">Last trip</th>
+                                </tr>
+                            </thead>
+                            <tbody id="vehicles-tbody">
+                                <tr><td colspan="5" class="placeholder">Loading vehicles…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
                 <section class="now-playing card">
                     <h2 class="card-title">Now Playing</h2>
                     <div id="now-playing-content" class="card-content">
@@ -100,7 +119,7 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
-    <script src="music.js?v=4"></script>
-    <script src="addin.js?v=4"></script>
+    <script src="music.js?v=5"></script>
+    <script src="addin.js?v=5"></script>
 </body>
 </html>
