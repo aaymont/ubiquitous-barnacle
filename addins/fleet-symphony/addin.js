@@ -3,7 +3,7 @@
 (function () {
     "use strict";
 
-    var CACHE_BUST = "6"; /* Bump when deploying; also update ?v= on styles.css, music.js, and addin.js in index.html */
+    var CACHE_BUST = "7"; /* Bump when deploying; also update ?v= on styles.css, music.js, and addin.js in index.html */
 
     var apiRef = null;
     var POLL_INTERVAL_MS = 5000;
@@ -206,6 +206,7 @@
         var isDark = typeof tableIsDark === "boolean" ? tableIsDark : (darknessFromExceptions(exceptionCount) >= 0.5);
         var rootMidi = ROOT_MIDI + (hashString(deviceName) % 12);
         var mood = isDark ? "dark" : "light";
+        var songIndex = hashString(deviceName) % 2;
         var bpm = window.FleetSymphonyMusic ? window.FleetSymphonyMusic.getBpm(mood) : 96;
         Tone.Transport.bpm.value = bpm;
         if (window.FleetSymphonyMusic && melodySynth && altoSynth && chordSynth && bassSynth) {
@@ -214,7 +215,7 @@
                 alto: altoSynth,
                 chord: chordSynth,
                 bass: bassSynth
-            });
+            }, songIndex);
         }
         var moodLabel = isDark ? "Minor (dark)" : "Major (light)";
         if (exceptionCount > 0) moodLabel = moodLabel + " (" + exceptionCount + " ex)";
@@ -647,7 +648,7 @@
                                         alto: altoSynth,
                                         chord: chordSynth,
                                         bass: bassSynth
-                                    });
+                                    }, hashString(deviceNameLive) % 2);
                                 }
                             });
                         } else {
@@ -698,7 +699,7 @@
                                 alto: altoSynth,
                                 chord: chordSynth,
                                 bass: bassSynth
-                            });
+                            }, hashString(deviceNameResume) % 2);
                         }
                     }
                     if (btnPause) btnPause.disabled = false;
