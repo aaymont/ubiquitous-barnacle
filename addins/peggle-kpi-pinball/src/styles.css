@@ -1,0 +1,292 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #1a1a2e;
+  color: #eee;
+  min-height: 100vh;
+}
+
+#app {
+  padding: 12px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.peggle-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  padding: 12px;
+  background: #16213e;
+  border-radius: 8px;
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.control-group label {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.control-group select {
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid #334155;
+  background: #0f172a;
+  color: #e2e8f0;
+  min-width: 140px;
+}
+
+.btn-group {
+  flex-direction: row;
+  align-items: center;
+}
+
+.btn-group button {
+  padding: 8px 14px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  background: #3b82f6;
+  color: white;
+}
+
+.btn-group button:hover {
+  background: #2563eb;
+}
+
+#skip-game-btn {
+  background: #10b981;
+}
+
+#skip-game-btn:hover {
+  background: #059669;
+}
+
+#reset-board-btn {
+  background: #64748b;
+}
+
+#reset-board-btn:hover {
+  background: #475569;
+}
+
+.split-view {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  min-height: 500px;
+}
+
+@media (max-width: 900px) {
+  .split-view {
+    grid-template-columns: 1fr;
+  }
+}
+
+.report-panel {
+  background: #16213e;
+  border-radius: 8px;
+  padding: 16px;
+  overflow-y: auto;
+  max-height: 640px;
+}
+
+.game-panel {
+  position: relative;
+  background: #0f172a;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+}
+
+.canvas-container {
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.peggle-canvas-wrapper {
+  width: 100%;
+}
+
+.peggle-canvas-wrapper canvas {
+  border-radius: 4px;
+}
+
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.9);
+  border-radius: 8px;
+  color: #94a3b8;
+}
+
+.loading-overlay.hidden {
+  display: none;
+}
+
+.full-report-msg {
+  background: #10b981;
+  color: white;
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+.full-report-msg.hidden {
+  display: none;
+}
+
+.summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.card {
+  background: #0f172a;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid #334155;
+  transition: box-shadow 0.3s, border-color 0.3s;
+}
+
+.card.peg-lit {
+  border-color: #10b981;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+}
+
+.card h3 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  color: #94a3b8;
+}
+
+.card-value {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.card-note {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+.timestamp {
+  font-size: 12px;
+  color: #64748b;
+  margin: 0 0 8px 0;
+}
+
+.explainer {
+  font-size: 13px;
+  color: #94a3b8;
+  margin: 0 0 16px 0;
+}
+
+.unlockable-section {
+  margin-top: 16px;
+  padding: 12px;
+  background: #0f172a;
+  border-radius: 6px;
+  border: 1px solid #334155;
+}
+
+.unlockable-section.hidden {
+  display: none;
+}
+
+.unlockable-section h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+}
+
+.trip-list,
+.anomalies-list,
+.segment-comparison,
+.export-preview {
+  font-size: 13px;
+}
+
+.trip-row,
+.anomaly-row,
+.segment-row {
+  padding: 4px 0;
+  border-bottom: 1px solid #1e293b;
+}
+
+.export-row {
+  margin-top: 16px;
+}
+
+#export-csv-btn {
+  padding: 8px 16px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  background: #3b82f6;
+  color: white;
+}
+
+#export-csv-btn:hover {
+  background: #2563eb;
+}
+
+.error-panel {
+  margin-top: 16px;
+  padding: 12px;
+  background: #7f1d1d;
+  border-radius: 6px;
+  border: 1px solid #991b1b;
+}
+
+.error-panel.hidden {
+  display: none;
+}
+
+.error-message {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.error-details summary {
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.error-pre {
+  margin: 8px 0 0 0;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  font-size: 12px;
+  overflow-x: auto;
+}

@@ -1,0 +1,12 @@
+{
+  "name": "Peggle KPI Pinball",
+  "supportEmail": "https://github.com/aaymont/ubiquitous-barnacle",
+  "version": "1.0.0",
+  "items": [
+    {
+      "url": "https://aaymont.github.io/ubiquitous-barnacle/addins/peggle-kpi-pinball/",
+      "path": "ActivityLink/",
+      "menuName": { "en": "Peggle KPI Pinball" }
+    }
+  ]
+}
