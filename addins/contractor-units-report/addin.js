@@ -424,17 +424,13 @@
                 }
 
                 var stops = [];
-                var stoppedInHomeZoneMs = 0;
                 for (var s = 0; s < dayTrips.length - 1; s++) {
                     var gapStart = new Date(dayTrips[s].stop).getTime();
                     var gapEnd = new Date(dayTrips[s + 1].start).getTime();
                     var gapMs = gapEnd - gapStart;
                     if (gapMs < STOP_THRESHOLD_MS) continue;
                     var pos = U.getPositionAtTime(logs, gapStart);
-                    if (startHomeZone && pos && pos.lat != null && pos.lng != null && U.pointInZone(pos.lat, pos.lng, startHomeZone)) {
-                        stoppedInHomeZoneMs += gapMs;
-                        continue;
-                    }
+                    if (startHomeZone && pos && pos.lat != null && pos.lng != null && U.pointInZone(pos.lat, pos.lng, startHomeZone)) continue;
                     stops.push({ durationMs: gapMs, position: pos });
                 }
                 var stopCount = stops.length;
@@ -500,7 +496,6 @@
                     IgnitionOnTimeSeconds: ignitionSeconds,
                     IdleInZoneSeconds: idleInZoneSeconds,
                     IdleOutZoneSeconds: idleOutZoneSeconds,
-                    StoppedInHomeZoneSeconds: stoppedInHomeZoneMs / 1000,
                     StopCount: stopCount,
                     StopLocations: stopLocationsStr.join("; "),
                     TotalStoppedTimeSeconds: totalStoppedMs / 1000,
@@ -618,7 +613,6 @@
         { key: "IgnitionOnTimeSeconds", label: "Ignition On Time", format: "duration" },
         { key: "IdleInZoneSeconds", label: "Idle In Zone", format: "duration" },
         { key: "IdleOutZoneSeconds", label: "Idle Out Zone", format: "duration" },
-        { key: "StoppedInHomeZoneSeconds", label: "Stopped in Home Zone (Operations Centre, Whitchurch-Stouffville Boundary)", format: "duration" },
         { key: "StopCount", label: "Stop Count" },
         { key: "StopLocations", label: "Stop Locations" },
         { key: "TotalStoppedTimeSeconds", label: "Total Stopped Time", format: "duration" },
