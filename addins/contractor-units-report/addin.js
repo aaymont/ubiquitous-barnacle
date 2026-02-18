@@ -492,7 +492,6 @@
                     Date: dayKey,
                     DeviceName: deviceName,
                     SerialNumber: deviceSerialNumber,
-                    StartHomeZone: startHomeZone ? (startHomeZone.name || "") : "",
                     IgnitionOnTimeSeconds: ignitionSeconds,
                     IdleInZoneSeconds: idleInZoneSeconds,
                     IdleOutZoneSeconds: idleOutZoneSeconds,
@@ -500,8 +499,6 @@
                     StopLocations: stopLocationsStr.join("; "),
                     TotalStoppedTimeSeconds: totalStoppedMs / 1000,
                     AllowedBreakMinutes: allowedBreakMin,
-                    BreakStopMatchedMinutes: breakStopMinutes,
-                    AdjustedStopCount: adjustedStopCount,
                     AdjustedStoppedTimeSeconds: adjustedStoppedMs / 1000,
                     _locationParts: locationParts
                 });
@@ -609,7 +606,6 @@
         { key: "Date", label: "Date" },
         { key: "DeviceName", label: "Device Name" },
         { key: "SerialNumber", label: "Geotab Serial Number" },
-        { key: "StartHomeZone", label: "Start Home Zone" },
         { key: "IgnitionOnTimeSeconds", label: "Ignition On Time", format: "duration" },
         { key: "IdleInZoneSeconds", label: "Idle In Zone", format: "duration" },
         { key: "IdleOutZoneSeconds", label: "Idle Out Zone", format: "duration" },
@@ -617,8 +613,6 @@
         { key: "StopLocations", label: "Stop Locations" },
         { key: "TotalStoppedTimeSeconds", label: "Total Stopped Time", format: "duration" },
         { key: "AllowedBreakMinutes", label: "Allowed Break (min)" },
-        { key: "BreakStopMatchedMinutes", label: "Break Stop Matched (min)" },
-        { key: "AdjustedStopCount", label: "Adjusted Stop Count" },
         { key: "AdjustedStoppedTimeSeconds", label: "Adjusted Stopped Time", format: "duration" }
     ];
 
