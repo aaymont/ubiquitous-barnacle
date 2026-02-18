@@ -1,0 +1,624 @@
+/* Fleet Symphony — MyGeotab Custom Page Add-In. Safety & Trip Sonification. */
+
+(function () {
+    "use strict";
+
+    var apiRef = null;
+    var POLL_INTERVAL_MS = 5000;
+    var DEFAULT_TRIPS_COUNT = 10;
+    var BPM_MIN = 70;
+    var BPM_MAX = 150;
+    var SPEED_RANGE_KMH = 110;
+    var SAFETY_MOTIF_RATE_MS = 3000;
+    var PENTATONIC_MAJOR = [0, 2, 4, 7, 9];
+    var PENTATONIC_MINOR = [0, 3, 5, 7, 10];
+
+    var statusPollTimerId = null;
+    var lastStatus = null;
+    var speedHistory = [];
+    var lastSafetyMotifAt = 0;
+    var midiAccess = null;
+    var midiOut = null;
+    var audioStarted = false;
+    var transportStarted = false;
+    var scheduledIds = [];
+
+    var kick = null;
+    var snare = null;
+    var hiHat = null;
+    var melodySynth = null;
+    var chordSynth = null;
+    var alarmSynth = null;
+    var limiter = null;
+    var meterAnalyser = null;
+    var meterData = null;
+    var meterAnimationId = null;
+
+    function getEl(id) {
+        return document.getElementById(id);
+    }
+
+    function escapeHtml(s) {
+        if (s == null) return "";
+        var div = document.createElement("div");
+        div.textContent = String(s);
+        return div.innerHTML;
+    }
+
+    function hashString(str) {
+        var h = 0;
+        var s = String(str || "");
+        for (var i = 0; i < s.length; i++) {
+            h = ((h << 5) - h) + s.charCodeAt(i) | 0;
+        }
+        return Math.abs(h);
+    }
+
+    function keyFromVehicleName(name) {
+        var h = hashString(name);
+        var notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+        return notes[h % 12];
+    }
+
+    function speedToBPM(speedKmh) {
+        var t = Math.max(0, Math.min(SPEED_RANGE_KMH, speedKmh || 0)) / SPEED_RANGE_KMH;
+        return Math.round(BPM_MIN + t * (BPM_MAX - BPM_MIN));
+    }
+
+    function avgSpeedLastN(n) {
+        if (!speedHistory.length || n < 1) return 0;
+        var len = Math.min(n, speedHistory.length);
+        var sum = 0;
+        for (var i = speedHistory.length - len; i < speedHistory.length; i++) {
+            sum += speedHistory[i];
+        }
+        return sum / len;
+    }
+
+    function initAudio() {
+        if (typeof Tone === "undefined") return false;
+        try {
+            Tone.Destination.volume.value = -12;
+            limiter = new Tone.Limiter(-1).toDestination();
+            var vol = (getEl("volume-slider") && getEl("volume-slider").value) ? parseInt(getEl("volume-slider").value, 10) : 25;
+            setMasterVolume(vol);
+            kick = new Tone.MembraneSynth({ pitchDecay: 0.05, octaves: 1 }).connect(limiter);
+            snare = new Tone.NoiseSynth({ noise: { type: "white" }, envelope: { decay: 0.1 } }).connect(limiter);
+            hiHat = new Tone.MetalSynth({ frequency: 8000, envelope: { decay: 0.02 }, harmonicity: 12 }).connect(limiter);
+            melodySynth = new Tone.Synth({ oscillator: { type: "sine" }, envelope: { attack: 0.02, decay: 0.2, sustain: 0.6, release: 0.4 } }).connect(limiter);
+            chordSynth = new Tone.PolySynth(Tone.Synth, { maxPolyphony: 4 }).connect(limiter);
+            alarmSynth = new Tone.Synth({ oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.2 } }).connect(limiter);
+            meterAnalyser = new Tone.Analyser("waveform", 256);
+            Tone.Destination.connect(meterAnalyser);
+            meterData = new Float32Array(256);
+            return true;
+        } catch (e) {
+            console.error("Fleet Symphony audio init:", e);
+            return false;
+        }
+    }
+
+    function setMasterVolume(percent) {
+        var p = Math.max(0, Math.min(100, percent));
+        if (getEl("volume-value")) getEl("volume-value").textContent = p + "%";
+        var db = p <= 0 ? -100 : -36 + (p / 100) * 30;
+        if (typeof Tone !== "undefined" && Tone.Destination && Tone.Destination.volume) {
+            Tone.Destination.volume.value = db;
+        }
+    }
+
+    function disposeAudio() {
+        if (meterAnimationId != null) {
+            cancelAnimationFrame(meterAnimationId);
+            meterAnimationId = null;
+        }
+        try {
+            if (typeof Tone !== "undefined") {
+                Tone.Transport.stop();
+                Tone.Transport.cancel();
+                if (kick) kick.dispose();
+                if (snare) snare.dispose();
+                if (hiHat) hiHat.dispose();
+                if (melodySynth) melodySynth.dispose();
+                if (chordSynth) chordSynth.dispose();
+                if (alarmSynth) alarmSynth.dispose();
+                if (limiter) limiter.dispose();
+                if (meterAnalyser) meterAnalyser.dispose();
+            }
+        } catch (e) {}
+        kick = snare = hiHat = melodySynth = chordSynth = alarmSynth = limiter = meterAnalyser = null;
+        audioStarted = false;
+        transportStarted = false;
+    }
+
+    function scheduleLiveDriving(status) {
+        if (typeof Tone === "undefined" || !melodySynth || !audioStarted) return;
+        var speed = status.speed != null ? status.speed : 0;
+        speedHistory.push(speed);
+        if (speedHistory.length > 60) speedHistory.shift();
+        var bpm = getEl("tempo-override") && getEl("tempo-override").value ? parseInt(getEl("tempo-override").value, 10) : speedToBPM(avgSpeedLastN(30));
+        bpm = Math.max(60, Math.min(200, bpm || 100));
+        Tone.Transport.bpm.value = bpm;
+        var rootMidi = 60 + (hashString(status.device && status.device.name) % 12);
+        var scale = PENTATONIC_MAJOR;
+        var degree = Math.min(4, Math.max(0, Math.floor((speed / (SPEED_RANGE_KMH + 1)) * 5)));
+        var midiNote = rootMidi + scale[degree];
+        var now = Tone.now();
+        melodySynth.triggerAttackRelease(Tone.Frequency(midiNote, "midi").toFrequency(), 0.3, now);
+        if (status.isDriving && speed > 5) {
+            kick.triggerAttackRelease("C1", "8n", now);
+        }
+    }
+
+    function playSafetyMotif() {
+        var now = Date.now();
+        if (now - lastSafetyMotifAt < SAFETY_MOTIF_RATE_MS) return;
+        lastSafetyMotifAt = now;
+        if (typeof Tone === "undefined" || !alarmSynth || !audioStarted) return;
+        var t = Tone.now();
+        var root = 440;
+        alarmSynth.triggerAttackRelease(root * 0.8, 0.15, t);
+        alarmSynth.triggerAttackRelease(root * 1.2, 0.15, t + 0.12);
+        alarmSynth.triggerAttackRelease(root * 0.9, 0.15, t + 0.24);
+        if (midiOut) {
+            try {
+                midiOut.send([0x90, 69, 80]);
+                midiOut.send([0x80, 69, 0]);
+                midiOut.send([0x90, 72, 80]);
+                midiOut.send([0x80, 72, 0]);
+            } catch (err) {}
+        }
+    }
+
+    function buildPlaybackSong(trips, exceptions, deviceName) {
+        if (typeof Tone === "undefined" || !audioStarted) return;
+        Tone.Transport.cancel();
+        var rootMidi = 60 + (hashString(deviceName) % 12);
+        var bpm = getEl("tempo-override") && getEl("tempo-override").value ? parseInt(getEl("tempo-override").value, 10) : 100;
+        Tone.Transport.bpm.value = Math.max(60, Math.min(200, bpm));
+        var hasExceptions = exceptions && exceptions.length > 0;
+        var scale = hasExceptions ? PENTATONIC_MINOR : PENTATONIC_MAJOR;
+        var beat = 0;
+        var totalBeats = 0;
+        trips = trips || [];
+        for (var i = 0; i < trips.length; i++) {
+            var dur = (trips[i].driveTime || 0) / 1000 / 60;
+            totalBeats += Math.max(4, Math.min(32, Math.round(dur * 2)));
+        }
+        totalBeats = Math.max(16, totalBeats);
+        var exSet = {};
+        if (exceptions) {
+            for (var j = 0; j < exceptions.length; j++) {
+                var ex = exceptions[j];
+                var from = ex.activeFrom ? new Date(ex.activeFrom).getTime() : 0;
+                exSet[from] = true;
+            }
+        }
+        var tripStarts = [];
+        for (var k = 0; k < trips.length; k++) {
+            var start = trips[k].start ? new Date(trips[k].start).getTime() : 0;
+            tripStarts.push({ t: start, trip: trips[k] });
+        }
+        tripStarts.sort(function (a, b) { return a.t - b.t; });
+        var t0 = tripStarts.length ? tripStarts[0].t : Date.now();
+        var beatDuration = 60 / Tone.Transport.bpm.value;
+        var t0 = Tone.now();
+        for (var b = 0; b < totalBeats; b += 1) {
+            var time = t0 + b * beatDuration * 0.25;
+            var isKick = b % 4 === 0;
+            if (isKick && kick) kick.triggerAttackRelease("C1", "8n", time);
+            if (b % 4 === 2 && snare) snare.triggerAttackRelease("8n", time);
+            if (hiHat && b % 2 === 0) hiHat.triggerAttackRelease("32n", time);
+        }
+        var chordChangeBeats = Math.max(4, Math.floor(totalBeats / (trips.length || 1)));
+        for (var c = 0; c < totalBeats; c += chordChangeBeats) {
+            var chordTime = t0 + c * beatDuration * 0.25;
+            var deg = (c / chordChangeBeats) % 3;
+            var chord = [scale[deg % 5], scale[(deg + 2) % 5], scale[(deg + 4) % 5]];
+            for (var n = 0; n < chord.length; n++) {
+                var freq = Tone.Frequency(rootMidi + chord[n], "midi").toFrequency();
+                if (chordSynth) chordSynth.triggerAttackRelease(freq, chordChangeBeats * 0.25 * beatDuration, chordTime);
+            }
+        }
+        var lastTripSummary = trips.length ? (trips[trips.length - 1].distance != null ? trips[trips.length - 1].distance.toFixed(1) + " km" : "—") : "—";
+        updateNowPlayingCards(Tone.Transport.bpm.value, keyFromVehicleName(deviceName), hasExceptions ? "Minor" : "Major", lastTripSummary);
+    }
+
+    function updateNowPlayingCards(bpm, key, safetyMood, lastTrip) {
+        var el;
+        if ((el = getEl("np-bpm"))) el.textContent = bpm != null ? bpm : "—";
+        if ((el = getEl("np-key"))) el.textContent = key || "—";
+        if ((el = getEl("np-safety"))) el.textContent = safetyMood || "—";
+        if ((el = getEl("np-last-trip"))) el.textContent = lastTrip != null ? lastTrip : "—";
+        var container = getEl("now-playing-cards");
+        var placeholder = getEl("now-playing-content");
+        if (container && placeholder) {
+            container.classList.remove("hidden");
+            placeholder.classList.add("hidden");
+        }
+    }
+
+    function drawMeter() {
+        if (meterAnalyser == null) return;
+        var canvas = getEl("level-meter");
+        if (!canvas) return;
+        var ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        try {
+            meterAnalyser.getValue(meterData);
+        } catch (e) {
+            meterAnimationId = requestAnimationFrame(drawMeter);
+            return;
+        }
+        var w = canvas.width;
+        var h = canvas.height;
+        ctx.fillStyle = "#1a2332";
+        ctx.fillRect(0, 0, w, h);
+        var sum = 0;
+        for (var i = 0; i < meterData.length; i++) sum += Math.abs(meterData[i]);
+        var level = Math.min(1, (sum / meterData.length) * 4);
+        var barW = w * level;
+        ctx.fillStyle = "#58a6ff";
+        ctx.fillRect(0, 0, barW, h);
+        meterAnimationId = requestAnimationFrame(drawMeter);
+    }
+
+    function addTimelineMarker(label, type) {
+        var container = getEl("timeline-content");
+        if (!container) return;
+        var span = document.createElement("span");
+        span.className = "timeline-marker " + (type || "trip");
+        span.textContent = label;
+        container.appendChild(span);
+    }
+
+    function loadDevices(api) {
+        var select = getEl("device-select");
+        if (!select) return;
+        select.innerHTML = '<option value="">— Select device —</option>';
+        api.call("Get", { typeName: "Device" }, function (devices) {
+            for (var i = 0; i < devices.length; i++) {
+                var d = devices[i];
+                var opt = document.createElement("option");
+                opt.value = d.id;
+                opt.textContent = (d.name != null ? d.name : d.id);
+                select.appendChild(opt);
+            }
+        }, function (err) {
+            console.error("Fleet Symphony: load devices", err);
+        });
+    }
+
+    function fetchStatus(api, deviceId, onResult) {
+        if (!deviceId) {
+            if (onResult) onResult(null);
+            return;
+        }
+        api.call("Get", {
+            typeName: "DeviceStatusInfo",
+            search: { deviceSearch: { id: deviceId } }
+        }, function (results) {
+            if (onResult) onResult(results && results.length ? results[0] : null);
+        }, function (err) {
+            if (onResult) onResult(null);
+        });
+    }
+
+    function fetchTrips(api, deviceId, days, onResult) {
+        if (!deviceId) {
+            if (onResult) onResult([]);
+            return;
+        }
+        var toDate = new Date();
+        var fromDate = new Date();
+        fromDate.setDate(fromDate.getDate() - (days || 7));
+        api.call("Get", {
+            typeName: "Trip",
+            search: {
+                deviceSearch: { id: deviceId },
+                fromDate: fromDate.toISOString(),
+                toDate: toDate.toISOString()
+            },
+            resultsLimit: Math.min(DEFAULT_TRIPS_COUNT * 2, 100)
+        }, function (trips) {
+            if (!trips || !trips.length) {
+                if (onResult) onResult([]);
+                return;
+            }
+            trips.sort(function (a, b) {
+                var ta = a.start ? new Date(a.start).getTime() : 0;
+                var tb = b.start ? new Date(b.start).getTime() : 0;
+                return tb - ta;
+            });
+            if (onResult) onResult(trips.slice(0, DEFAULT_TRIPS_COUNT));
+        }, function (err) {
+            if (onResult) onResult([]);
+        });
+    }
+
+    function fetchExceptions(api, deviceId, days, onResult) {
+        if (!deviceId) {
+            if (onResult) onResult([]);
+            return;
+        }
+        var toDate = new Date();
+        var fromDate = new Date();
+        fromDate.setDate(fromDate.getDate() - (days || 7));
+        api.call("Get", {
+            typeName: "ExceptionEvent",
+            search: {
+                deviceSearch: { id: deviceId },
+                fromDate: fromDate.toISOString(),
+                toDate: toDate.toISOString()
+            },
+            resultsLimit: 200
+        }, function (events) {
+            if (onResult) onResult(events || []);
+        }, function () {
+            if (onResult) onResult([]);
+        });
+    }
+
+    function pollStatus(api) {
+        if (statusPollTimerId) return;
+        var deviceId = getEl("device-select") && getEl("device-select").value;
+        if (!deviceId) return;
+        function poll() {
+            fetchStatus(api, deviceId, function (status) {
+                lastStatus = status;
+                if (status && getEl("mode-toggle") && getEl("mode-toggle").value === "live") {
+                    updateNowPlayingFromStatus(status);
+                    if (audioStarted && transportStarted) scheduleLiveDriving(status);
+                    if (status.isDeviceCommunicating === false) {
+                        playSafetyMotif();
+                    }
+                }
+            });
+        }
+        poll();
+        statusPollTimerId = setInterval(poll, POLL_INTERVAL_MS);
+    }
+
+    function stopPolling() {
+        if (statusPollTimerId) {
+            clearInterval(statusPollTimerId);
+            statusPollTimerId = null;
+        }
+    }
+
+    function updateNowPlayingFromStatus(status) {
+        var bpm = getEl("tempo-override") && getEl("tempo-override").value ? parseInt(getEl("tempo-override").value, 10) : speedToBPM(avgSpeedLastN(30));
+        if (bpm == null || isNaN(bpm)) bpm = speedToBPM(status.speed || 0);
+        bpm = Math.max(60, Math.min(200, bpm));
+        var deviceName = status.device && status.device.name ? status.device.name : "";
+        var key = keyFromVehicleName(deviceName);
+        var safetyMood = status.isDeviceCommunicating === false ? "Minor (offline)" : "Major";
+        updateNowPlayingCards(bpm, key, safetyMood, status.speed != null ? status.speed + " km/h" : "—");
+    }
+
+    function renderLiveStatus(status) {
+        var content = getEl("now-playing-content");
+        if (!content) return;
+        if (!status) {
+            content.innerHTML = '<p class="placeholder">Select a device and click Start.</p>';
+            content.classList.remove("hidden");
+            var cards = getEl("now-playing-cards");
+            if (cards) cards.classList.add("hidden");
+            return;
+        }
+        var speed = status.speed != null ? status.speed + " km/h" : "—";
+        var bearing = status.bearing != null ? status.bearing : "—";
+        var dateTime = status.dateTime ? new Date(status.dateTime).toLocaleString() : "—";
+        var comm = status.isDeviceCommunicating != null ? (status.isDeviceCommunicating ? "Yes" : "No") : "—";
+        content.innerHTML =
+            "<table class=\"status-table\"><tr><th>Speed</th><td>" + escapeHtml(speed) + "</td></tr>" +
+            "<tr><th>Bearing</th><td>" + escapeHtml(bearing) + "</td></tr>" +
+            "<tr><th>Date / Time</th><td>" + escapeHtml(dateTime) + "</td></tr>" +
+            "<tr><th>Communicating</th><td>" + escapeHtml(comm) + "</td></tr></table>";
+        content.classList.remove("hidden");
+    }
+
+    function requestMIDI() {
+        if (typeof navigator.requestMIDIAccess === "undefined") return;
+        if (location.protocol !== "https:" && location.hostname !== "localhost") return;
+        navigator.requestMIDIAccess({ sysex: false }).then(function (access) {
+            midiAccess = access;
+            var select = getEl("midi-device-select");
+            if (!select) return;
+            select.innerHTML = '<option value="">— No device —</option>';
+            var outs = access.outputs.values();
+            var out;
+            while ((out = outs.next()) && !out.done) {
+                var opt = document.createElement("option");
+                opt.value = out.value.id;
+                opt.textContent = out.value.name || out.value.id;
+                select.appendChild(opt);
+            }
+        }).catch(function (err) {
+            console.warn("Fleet Symphony MIDI:", err);
+        });
+    }
+
+    function bindUI(api) {
+        var deviceSelect = getEl("device-select");
+        var modeToggle = getEl("mode-toggle");
+        var playbackRange = getEl("playback-range");
+        var playbackRangeGroup = getEl("playback-range-group");
+        var btnStart = getEl("btn-start");
+        var btnPause = getEl("btn-pause");
+        var btnStop = getEl("btn-stop");
+        var volumeSlider = getEl("volume-slider");
+        var midiToggle = getEl("midi-toggle");
+        var midiSelect = getEl("midi-device-select");
+
+        function showPlaybackRange(show) {
+            if (playbackRangeGroup) playbackRangeGroup.classList.toggle("hidden", !show);
+        }
+
+        if (modeToggle) {
+            modeToggle.addEventListener("change", function () {
+                showPlaybackRange(modeToggle.value === "playback");
+            });
+            showPlaybackRange(modeToggle.value === "playback");
+        }
+
+        if (deviceSelect) {
+            deviceSelect.addEventListener("change", function () {
+                stopPolling();
+                lastStatus = null;
+                speedHistory = [];
+                renderLiveStatus(null);
+            });
+        }
+
+        if (btnStart) {
+            btnStart.addEventListener("click", function () {
+                var deviceId = deviceSelect && deviceSelect.value;
+                if (!deviceId) return;
+                if (typeof Tone === "undefined") {
+                    renderLiveStatus(lastStatus);
+                    return;
+                }
+                if (!audioStarted) {
+                    Tone.start().then(function () {
+                        audioStarted = true;
+                        if (!initAudio()) return;
+                        setMasterVolume(volumeSlider ? parseInt(volumeSlider.value, 10) : 25);
+                        drawMeter();
+                        transportStarted = true;
+                        Tone.Transport.start();
+                        if (modeToggle && modeToggle.value === "live") {
+                            pollStatus(api);
+                            fetchStatus(api, deviceId, function (s) {
+                                lastStatus = s;
+                                renderLiveStatus(s);
+                                updateNowPlayingFromStatus(s);
+                            });
+                        } else {
+                            var days = playbackRange ? parseInt(playbackRange.value, 10) : 7;
+                            fetchTrips(api, deviceId, days, function (trips) {
+                                fetchExceptions(api, deviceId, days, function (exceptions) {
+                                    var deviceName = "";
+                                    for (var i = 0; i < deviceSelect.options.length; i++) {
+                                        if (deviceSelect.options[i].value === deviceId) {
+                                            deviceName = deviceSelect.options[i].text;
+                                            break;
+                                        }
+                                    }
+                                    buildPlaybackSong(trips, exceptions, deviceName);
+                                    var tc = getEl("timeline-content");
+                                    if (tc) {
+                                        tc.innerHTML = "";
+                                        for (var j = 0; j < (trips || []).length; j++) {
+                                            addTimelineMarker("Trip " + (j + 1), "trip");
+                                        }
+                                        for (var k = 0; k < (exceptions || []).length; k++) {
+                                            addTimelineMarker("Exception", "exception");
+                                        }
+                                    }
+                                });
+                            });
+                        }
+                        if (btnPause) btnPause.disabled = false;
+                        if (btnStop) btnStop.disabled = false;
+                    });
+                } else {
+                    transportStarted = true;
+                    Tone.Transport.start();
+                    if (modeToggle && modeToggle.value === "live") pollStatus(api);
+                    if (btnPause) btnPause.disabled = false;
+                    if (btnStop) btnStop.disabled = false;
+                }
+            });
+        }
+
+        if (btnPause) {
+            btnPause.addEventListener("click", function () {
+                if (typeof Tone !== "undefined") Tone.Transport.pause();
+            });
+        }
+
+        if (btnStop) {
+            btnStop.addEventListener("click", function () {
+                if (typeof Tone !== "undefined") Tone.Transport.stop();
+                transportStarted = false;
+                stopPolling();
+                if (btnPause) btnPause.disabled = true;
+                if (btnStop) btnStop.disabled = true;
+            });
+        }
+
+        if (volumeSlider) {
+            volumeSlider.addEventListener("input", function () {
+                setMasterVolume(parseInt(volumeSlider.value, 10));
+            });
+        }
+
+        if (midiToggle && midiSelect) {
+            midiToggle.addEventListener("change", function () {
+                midiSelect.disabled = !midiToggle.checked;
+                if (midiToggle.checked && midiSelect.value) {
+                    var outs = midiAccess && midiAccess.outputs ? midiAccess.outputs : [];
+                    var it = outs.values && outs.values();
+                    if (it) {
+                        var next = it.next();
+                        while (!next.done) {
+                            if (next.value.id === midiSelect.value) {
+                                midiOut = next.value;
+                                break;
+                            }
+                            next = it.next();
+                        }
+                    }
+                } else {
+                    midiOut = null;
+                }
+            });
+            midiSelect.addEventListener("change", function () {
+                midiOut = null;
+                if (!midiAccess || !midiAccess.outputs) return;
+                var it = midiAccess.outputs.values();
+                var n;
+                while ((n = it.next()) && !n.done) {
+                    if (n.value.id === midiSelect.value) {
+                        midiOut = n.value;
+                        break;
+                    }
+                }
+            });
+        }
+    }
+
+    function showMidiWarning() {
+        var warn = getEl("midi-warning");
+        if (!warn) return;
+        if (location.protocol !== "https:" && location.hostname !== "localhost") {
+            warn.textContent = "MIDI requires HTTPS. Not available on this page.";
+        } else {
+            warn.textContent = "MIDI requires HTTPS. Enable only if you have a compatible device.";
+        }
+    }
+
+    geotab.addin.fleetSymphony = function () {
+        return {
+            initialize: function (api, state, callback) {
+                apiRef = api;
+                loadDevices(api);
+                bindUI(api);
+                showMidiWarning();
+                if (typeof navigator.requestMIDIAccess !== "undefined" && (location.protocol === "https:" || location.hostname === "localhost")) {
+                    requestMIDI();
+                }
+                if (typeof callback === "function") callback();
+            },
+            focus: function (api, state) {
+                apiRef = api;
+            },
+            blur: function (api, state) {
+                if (typeof Tone !== "undefined") Tone.Transport.stop();
+                stopPolling();
+                disposeAudio();
+            }
+        };
+    };
+})();

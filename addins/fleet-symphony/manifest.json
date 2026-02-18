@@ -1,0 +1,10 @@
+{
+  "name": "Fleet Symphony",
+  "supportEmail": "https://github.com/aaymont/ubiquitous-barnacle",
+  "version": "1.0.0",
+  "items": [{
+    "url": "https://aaymont.github.io/ubiquitous-barnacle/addins/fleet-symphony/index.html",
+    "path": "ActivityLink/",
+    "menuName": { "en": "Fleet Symphony" }
+  }]
+}

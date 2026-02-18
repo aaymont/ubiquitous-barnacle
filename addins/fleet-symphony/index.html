@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Fleet Symphony</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <header class="header">
+            <h1 class="header-title">Fleet Symphony</h1>
+            <p class="header-subtitle">Safety &amp; Trip Sonification</p>
+        </header>
+
+        <div class="layout">
+            <aside class="controls-panel">
+                <div class="control-group">
+                    <label for="device-select">Device</label>
+                    <select id="device-select" aria-label="Select device">
+                        <option value="">— Select device —</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="mode-toggle">Mode</label>
+                    <select id="mode-toggle" aria-label="Live or Playback">
+                        <option value="live">Live</option>
+                        <option value="playback">Playback</option>
+                    </select>
+                </div>
+                <div class="control-group playback-range" id="playback-range-group">
+                    <label for="playback-range">Playback range</label>
+                    <select id="playback-range" aria-label="Last 1, 7, or 30 days">
+                        <option value="1">Last 1 day</option>
+                        <option value="7" selected>Last 7 days</option>
+                        <option value="30">Last 30 days</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="tempo-override">Tempo override (BPM)</label>
+                    <input type="number" id="tempo-override" min="60" max="200" step="1" placeholder="Auto" aria-label="Optional tempo override">
+                </div>
+                <div class="control-group btn-group">
+                    <button type="button" id="btn-start" class="btn btn-primary">Start</button>
+                    <button type="button" id="btn-pause" class="btn btn-secondary" disabled>Pause</button>
+                    <button type="button" id="btn-stop" class="btn btn-secondary" disabled>Stop</button>
+                </div>
+                <div class="control-group">
+                    <label for="volume-slider">Master volume</label>
+                    <input type="range" id="volume-slider" min="0" max="100" value="25" aria-label="Master volume">
+                    <span id="volume-value" class="volume-value">25%</span>
+                </div>
+                <div class="control-group">
+                    <label for="presentation-mode" class="toggle-label">Presentation mode</label>
+                    <input type="checkbox" id="presentation-mode" aria-label="Presentation mode">
+                </div>
+                <div class="control-group midi-section" id="midi-section">
+                    <label for="midi-toggle" class="toggle-label">MIDI Out</label>
+                    <input type="checkbox" id="midi-toggle" aria-label="Send to MIDI output">
+                    <p class="midi-warning" id="midi-warning">MIDI requires HTTPS. Enable only if you have a compatible device.</p>
+                    <select id="midi-device-select" aria-label="MIDI output device" disabled>
+                        <option value="">— No device —</option>
+                    </select>
+                </div>
+            </aside>
+
+            <main class="viz-panel">
+                <section class="now-playing card">
+                    <h2 class="card-title">Now Playing</h2>
+                    <div id="now-playing-content" class="card-content">
+                        <p class="placeholder">Select a device and click Start.</p>
+                    </div>
+                    <div id="now-playing-cards" class="mini-cards hidden">
+                        <div class="mini-card"><span class="label">BPM</span><span id="np-bpm" class="value">—</span></div>
+                        <div class="mini-card"><span class="label">Key</span><span id="np-key" class="value">—</span></div>
+                        <div class="mini-card"><span class="label">Safety mood</span><span id="np-safety" class="value">—</span></div>
+                        <div class="mini-card"><span class="label">Last trip</span><span id="np-last-trip" class="value">—</span></div>
+                    </div>
+                </section>
+                <section class="card">
+                    <h2 class="card-title">Level meter</h2>
+                    <div class="meter-container">
+                        <canvas id="level-meter" width="400" height="80" aria-label="Audio level meter"></canvas>
+                    </div>
+                </section>
+                <section class="card">
+                    <h2 class="card-title">Timeline</h2>
+                    <div id="timeline-content" class="timeline-content">
+                        <p class="placeholder">Trip and exception markers appear here when playing.</p>
+                    </div>
+                </section>
+            </main>
+        </div>
+
+        <div id="loading-overlay" class="loading-overlay hidden">
+            <p>Loading…</p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+    <script src="addin.js"></script>
+</body>
+</html>
