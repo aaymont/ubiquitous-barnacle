@@ -3,6 +3,7 @@
     "use strict";
 
     var CONTRACTOR_GROUP_ID = "b27A5";
+    var HOME_ZONE_ID = "b1";
     var PREVIEW_ROWS = 200;
     var STOP_THRESHOLD_MS = 10 * 60 * 1000;
     var BREAK_4H_MS = 4 * 60 * 60 * 1000;
@@ -316,16 +317,26 @@
                         }
                     }
                 }
-                if (!homeTypeId) {
-                    hideProgress();
-                    setGenerateEnabled(true);
-                    showMessage("No Home zone type found. Create a ZoneType named Home or use built-in Home.", false);
-                    return;
+                function ensureHomeZoneB1(homeZones, next) {
+                    var hasB1 = false;
+                    for (var h = 0; h < homeZones.length; h++) {
+                        if (homeZones[h].id === HOME_ZONE_ID) { hasB1 = true; break; }
+                    }
+                    if (hasB1) {
+                        next(homeZones);
+                        return;
+                    }
+                    api.call("Get", { typeName: "Zone", search: { id: HOME_ZONE_ID } }, function (zoneB1List) {
+                        if (zoneB1List && zoneB1List.length > 0) {
+                            homeZones = homeZones.slice();
+                            homeZones.push(zoneB1List[0]);
+                        }
+                        next(homeZones);
+                    }, function () {
+                        next(homeZones);
+                    });
                 }
-                api.call("Get", {
-                    typeName: "Zone",
-                    search: { zoneTypes: [{ id: homeTypeId }] }
-                }, function (homeZones) {
+                function onHomeZonesLoaded(homeZones) {
                     homeZones = homeZones || [];
                     var allZones = homeZones.slice();
                     api.call("Get", { typeName: "Zone" }, function (allZonesResult) {
@@ -342,11 +353,39 @@
                     }, function (err) {
                         runPerDevice(api, devices, homeZones, homeZones, fromStr, toStr, fromDate, toDate, 0);
                     });
-                }, function (err) {
-                    hideProgress();
-                    setGenerateEnabled(true);
-                    showMessage("Unable to load zones. Check add-in permissions (Zones).", true, err && (err.message || JSON.stringify(err)));
-                });
+                }
+                if (homeTypeId) {
+                    api.call("Get", {
+                        typeName: "Zone",
+                        search: { zoneTypes: [{ id: homeTypeId }] }
+                    }, function (homeZones) {
+                        ensureHomeZoneB1(homeZones || [], onHomeZonesLoaded);
+                    }, function (err) {
+                        api.call("Get", { typeName: "Zone", search: { id: HOME_ZONE_ID } }, function (zoneB1List) {
+                            var homeZones = (zoneB1List && zoneB1List.length > 0) ? zoneB1List : [];
+                            onHomeZonesLoaded(homeZones);
+                        }, function (err2) {
+                            hideProgress();
+                            setGenerateEnabled(true);
+                            showMessage("Unable to load zones. Check add-in permissions (Zones). Home zone id: " + HOME_ZONE_ID + ".", true, err && (err.message || JSON.stringify(err)));
+                        });
+                    });
+                } else {
+                    api.call("Get", { typeName: "Zone", search: { id: HOME_ZONE_ID } }, function (zoneB1List) {
+                        var homeZones = (zoneB1List && zoneB1List.length > 0) ? zoneB1List : [];
+                        if (homeZones.length === 0) {
+                            hideProgress();
+                            setGenerateEnabled(true);
+                            showMessage("Home zone (id " + HOME_ZONE_ID + ") not found. Check that the zone exists.", false);
+                            return;
+                        }
+                        onHomeZonesLoaded(homeZones);
+                    }, function (err) {
+                        hideProgress();
+                        setGenerateEnabled(true);
+                        showMessage("Unable to load home zone (id " + HOME_ZONE_ID + "). Check add-in permissions (Zones).", true, err && (err.message || JSON.stringify(err)));
+                    });
+                }
             }, function (err) {
                 hideProgress();
                 setGenerateEnabled(true);
