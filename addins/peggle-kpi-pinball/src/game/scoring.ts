@@ -1,11 +1,13 @@
 const COMBO_WINDOW_MS = 2000;
 const WIN_SCORE_THRESHOLD = 500;
+const BOUNCES_TO_FULL_REVEAL = 8;
 const POWER_PEG_BONUS = 100;
 const STANDARD_PEG_SCORE = 25;
 const COMBO_BONUS_PER_PEG = 10;
 
 let score = 0;
 let recentHits: number[] = [];
+let totalPegHits = 0;
 let onScoreChange: ((s: number) => void) | null = null;
 let onCombo: (() => void) | null = null;
 let powerPegsHit = 0;
@@ -14,8 +16,13 @@ let totalPowerPegs = 0;
 export function initScoring(powerPegCount: number) {
   score = 0;
   recentHits = [];
+  totalPegHits = 0;
   totalPowerPegs = powerPegCount;
   powerPegsHit = 0;
+}
+
+export function getTotalPegHits(): number {
+  return totalPegHits;
 }
 
 export function setScoreCallbacks(scoreCb: (s: number) => void, comboCb: () => void) {
@@ -25,6 +32,7 @@ export function setScoreCallbacks(scoreCb: (s: number) => void, comboCb: () => v
 
 export function recordPegHit(_pegId: string, isPowerPeg: boolean) {
   const now = Date.now();
+  totalPegHits++;
   const points = isPowerPeg ? POWER_PEG_BONUS : STANDARD_PEG_SCORE;
   score += points;
 
@@ -47,5 +55,9 @@ export function getScore(): number {
 }
 
 export function hasWon(): boolean {
-  return powerPegsHit >= totalPowerPegs || score >= WIN_SCORE_THRESHOLD;
+  return (
+    totalPegHits >= BOUNCES_TO_FULL_REVEAL ||
+    powerPegsHit >= totalPowerPegs ||
+    score >= WIN_SCORE_THRESHOLD
+  );
 }

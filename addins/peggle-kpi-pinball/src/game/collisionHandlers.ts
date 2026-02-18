@@ -45,7 +45,7 @@ export function setupCollisionHandlers(_pegDefs: PegDef[]): void {
 
       glowPeg(pegBody);
       recordPegHit(pegId, isPowerPeg);
-      revealPegReport(pegId);
+      revealPegReport(hitPegs);
       unlockComboSection();
 
       if (hasWon()) {

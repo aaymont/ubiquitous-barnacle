@@ -10,6 +10,7 @@ import type { ExportState } from "./exportCsv";
 import { buildPegBoard, dropBall, resetBoard, onSkipGame } from "../game/pegBoardBuilder";
 import { isPhysicsFailed } from "../addin/lifecycle";
 import { isPixiReady } from "../game/pixiStage";
+import { getTotalPegHits } from "../game/scoring";
 import { VERSION_DISPLAY } from "../version";
 
 function whenPixiReady(): Promise<void> {
@@ -51,18 +52,36 @@ export function setReportCallbacks(pegReveal: ReportRevealCallback, comboUnlock:
   onComboUnlock = comboUnlock;
 }
 
-export function revealPegReport(pegId: string) {
-  const cardId = pegToCard(pegId);
-  if (cardId) {
-    const card = document.getElementById(cardId);
-    if (card) card.classList.add("peg-lit");
+const MIN_BOUNCES_TO_START_REVEAL = 2;
+
+export function revealPegReport(hitPegIds: Iterable<string>) {
+  const total = getTotalPegHits();
+  if (total < MIN_BOUNCES_TO_START_REVEAL) return;
+
+  for (const pegId of hitPegIds) {
+    const cardId = pegToCard(pegId);
+    if (cardId) {
+      const card = document.getElementById(cardId);
+      if (card) card.classList.add("peg-lit");
+    }
+    onPegReveal?.(pegId);
   }
-  onPegReveal?.(pegId);
 }
 
 export function unlockComboSection() {
-  const next = getNextComboSection();
-  if (next) showSection(next);
+  const total = getTotalPegHits();
+  // Unlock sections progressively: A at 2, B at 4, C at 6, D at 8 bounces
+  const thresholds: [number, string][] = [
+    [2, "section-a"],
+    [4, "section-b"],
+    [6, "section-c"],
+    [8, "section-d"],
+  ];
+  for (const [minHits, sectionId] of thresholds) {
+    if (total >= minHits) {
+      showSection(sectionId);
+    }
+  }
   onComboUnlock?.();
 }
 
@@ -86,15 +105,6 @@ function pegToCard(pegId: string): string | null {
 }
 
 const COMBO_SECTIONS = ["section-a", "section-b", "section-c", "section-d"];
-
-function getNextComboSection(): string | null {
-  for (let i = 0; i < COMBO_SECTIONS.length; i++) {
-    const id = COMBO_SECTIONS[i];
-    const el = document.getElementById(id);
-    if (el && el.classList.contains("hidden")) return id;
-  }
-  return null;
-}
 
 function showSection(sectionId: string) {
   const el = document.getElementById(sectionId);
