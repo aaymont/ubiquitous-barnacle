@@ -69,14 +69,20 @@
         formatAddress: function (addr) {
             if (!addr) return "";
             if (typeof addr === "string") return addr;
-            var parts = [];
-            if (addr.street) parts.push(addr.street);
-            if (addr.city) parts.push(addr.city);
-            if (addr.region || addr.state) parts.push(addr.region || addr.state);
-            if (addr.country) parts.push(addr.country);
-            if (addr.postalCode && parts.length > 0) parts.push(addr.postalCode);
             if (addr.formattedAddress) return addr.formattedAddress;
             if (addr.displayName) return addr.displayName;
+            if (addr.display_name) return addr.display_name;
+            var a = addr.address || addr;
+            var parts = [];
+            if (a.street) parts.push(a.street);
+            else if (a.road) parts.push(a.road);
+            if (a.city) parts.push(a.city);
+            else if (a.town) parts.push(a.town);
+            else if (a.village) parts.push(a.village);
+            if (a.suburb) parts.push(a.suburb);
+            if (a.region || a.state) parts.push(a.region || a.state);
+            if (a.country) parts.push(a.country);
+            if (a.postalCode || a.postcode) parts.push(a.postalCode || a.postcode);
             if (parts.length > 0) return parts.join(", ");
             return "";
         },

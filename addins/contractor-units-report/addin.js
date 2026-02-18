@@ -67,6 +67,54 @@
         if (btn) btn.disabled = !enabled;
     }
 
+    function nominatimReverse(lat, lng, callback) {
+        var url = "https://nominatim.openstreetmap.org/reverse?lat=" + encodeURIComponent(lat) + "&lon=" + encodeURIComponent(lng) + "&format=json";
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", url);
+        xhr.setRequestHeader("User-Agent", "ContractorUnitsReportAddIn/1.0 (MyGeotab Add-In)");
+        xhr.onload = function () {
+            if (xhr.status === 200) {
+                try {
+                    var data = JSON.parse(xhr.responseText);
+                    callback(null, data.display_name || U.formatAddress(data));
+                } catch (e) {
+                    callback(e);
+                }
+            } else {
+                callback(new Error("Nominatim " + xhr.status));
+            }
+        };
+        xhr.onerror = function () { callback(new Error("Network error")); };
+        xhr.timeout = 10000;
+        xhr.send();
+    }
+
+    function runNominatimFallback(fallbackList, rowsData, coordToRowEntry, progressPrefix, doneCallback) {
+        if (fallbackList.length === 0) {
+            doneCallback();
+            return;
+        }
+        var NOMINATIM_DELAY_MS = 1100;
+        var idx = 0;
+        function next() {
+            if (idx >= fallbackList.length) {
+                doneCallback();
+                return;
+            }
+            var item = fallbackList[idx];
+            showProgress(progressPrefix + " (" + (idx + 1) + " of " + fallbackList.length + ")…");
+            nominatimReverse(item.lat, item.lng, function (err, displayName) {
+                if (!err && displayName) {
+                    var part = rowsData[item.ref.rowIndex]._locationParts[item.ref.partIndex];
+                    if (part && typeof part === "object") part.display = displayName;
+                }
+                idx++;
+                setTimeout(next, NOMINATIM_DELAY_MS);
+            });
+        }
+        next();
+    }
+
     function toISODate(d) {
         return d.toISOString ? d.toISOString().slice(0, 10) : "";
     }
@@ -393,13 +441,14 @@
                 var locationParts = [];
                 for (var sl = 0; sl < stops.length; sl++) {
                     var pos = stops[sl].position;
+                    var durationMs = stops[sl].durationMs;
                     if (!pos || pos.lat == null || pos.lng == null) continue;
                     if (startHomeZone && U.pointInZone(pos.lat, pos.lng, startHomeZone)) continue;
                     var zoneName = U.findZoneAtPoint(pos.lat, pos.lng, allZones, startHomeZone ? startHomeZone.id : null);
                     if (zoneName) {
-                        locationParts.push(zoneName);
+                        locationParts.push({ display: zoneName, durationMs: durationMs });
                     } else {
-                        locationParts.push({ needAddress: true, lat: pos.lat, lng: pos.lng });
+                        locationParts.push({ needAddress: true, lat: pos.lat, lng: pos.lng, durationMs: durationMs });
                         coordsFlat.push({ latitude: pos.lat, longitude: pos.lng });
                         coordToRowEntry.push({ rowIndex: di, partIndex: locationParts.length - 1 });
                     }
@@ -432,10 +481,15 @@
                     }
                 }
 
+                function formatStopWithDuration(part) {
+                    var loc = (part.display != null) ? part.display : (part.lat != null && part.lng != null ? U.formatLatLng(part.lat, part.lng) : "");
+                    var durMin = part.durationMs != null ? Math.round(part.durationMs / 60000) : 0;
+                    var durStr = durMin < 60 ? (durMin + " min") : (Math.floor(durMin / 60) + " h " + (durMin % 60) + " min");
+                    return loc ? (loc + " (" + durStr + ")") : durStr;
+                }
                 var stopLocationsStr = [];
                 for (var pi = 0; pi < locationParts.length; pi++) {
-                    var part = locationParts[pi];
-                    stopLocationsStr.push(typeof part === "string" ? part : U.formatLatLng(part.lat, part.lng));
+                    stopLocationsStr.push(formatStopWithDuration(locationParts[pi]));
                 }
                 rowsData.push({
                     Date: dayKey,
@@ -471,7 +525,7 @@
                 return;
             }
 
-            showProgress("Looking up addresses for " + deviceName + " (" + coordsFlat.length + " locations)…");
+            showProgress("Looking up addresses (Geotab) for " + deviceName + "…");
             api.call("GetAddresses", { coordinates: coordsFlat }, function (addresses) {
                 var numAddr = (addresses && addresses.length) ? addresses.length : 0;
                 for (var ai = 0; ai < numAddr && ai < coordToRowEntry.length; ai++) {
@@ -479,28 +533,73 @@
                     var part = rowsData[ref.rowIndex]._locationParts[ref.partIndex];
                     if (part && part.needAddress) {
                         var addrStr = U.formatAddress(addresses[ai]);
-                        rowsData[ref.rowIndex]._locationParts[ref.partIndex] = addrStr || U.formatLatLng(part.lat, part.lng);
+                        if (addrStr && addrStr.trim() !== "") {
+                            part.display = addrStr;
+                        }
                     }
                 }
-                for (var ri = 0; ri < rowsData.length; ri++) {
-                    var parts = rowsData[ri]._locationParts;
-                    var strs = [];
-                    for (var p = 0; p < parts.length; p++) {
-                        strs.push(typeof parts[p] === "string" ? parts[p] : U.formatLatLng(parts[p].lat, parts[p].lng));
+                var fallbackList = [];
+                for (var fi = 0; fi < coordToRowEntry.length; fi++) {
+                    var ref = coordToRowEntry[fi];
+                    var part = rowsData[ref.rowIndex]._locationParts[ref.partIndex];
+                    if (part && part.needAddress && part.lat != null && part.lng != null) {
+                        fallbackList.push({ ref: ref, lat: part.lat, lng: part.lng });
                     }
-                    rowsData[ri].StopLocations = strs.join("; ");
                 }
-                finishDeviceAndContinue();
+                function formatStopWithDuration(part) {
+                    var loc = (part.display != null) ? part.display : (part.lat != null && part.lng != null ? U.formatLatLng(part.lat, part.lng) : "");
+                    var durMin = part.durationMs != null ? Math.round(part.durationMs / 60000) : 0;
+                    var durStr = durMin < 60 ? (durMin + " min") : (Math.floor(durMin / 60) + " h " + (durMin % 60) + " min");
+                    return loc ? (loc + " (" + durStr + ")") : durStr;
+                }
+                function rebuildStopLocationsAndFinish() {
+                    for (var ri = 0; ri < rowsData.length; ri++) {
+                        var parts = rowsData[ri]._locationParts;
+                        var strs = [];
+                        for (var p = 0; p < parts.length; p++) {
+                            strs.push(formatStopWithDuration(parts[p]));
+                        }
+                        rowsData[ri].StopLocations = strs.join("; ");
+                    }
+                    finishDeviceAndContinue();
+                }
+                if (fallbackList.length === 0) {
+                    rebuildStopLocationsAndFinish();
+                    return;
+                }
+                runNominatimFallback(fallbackList, rowsData, coordToRowEntry, "Looking up addresses (OpenStreetMap)", rebuildStopLocationsAndFinish);
             }, function (err) {
-                for (var ri = 0; ri < rowsData.length; ri++) {
-                    var parts = rowsData[ri]._locationParts;
-                    var strs = [];
-                    for (var p = 0; p < parts.length; p++) {
-                        strs.push(typeof parts[p] === "string" ? parts[p] : U.formatLatLng(parts[p].lat, parts[p].lng));
+                var fallbackList = [];
+                for (var fi = 0; fi < coordToRowEntry.length; fi++) {
+                    var ref = coordToRowEntry[fi];
+                    var part = rowsData[ref.rowIndex]._locationParts[ref.partIndex];
+                    if (part && part.needAddress && part.lat != null && part.lng != null) {
+                        fallbackList.push({ ref: ref, lat: part.lat, lng: part.lng });
                     }
-                    rowsData[ri].StopLocations = strs.join("; ");
                 }
-                finishDeviceAndContinue();
+                function formatStopWithDuration(part) {
+                    var loc = (part.display != null) ? part.display : (part.lat != null && part.lng != null ? U.formatLatLng(part.lat, part.lng) : "");
+                    var durMin = part.durationMs != null ? Math.round(part.durationMs / 60000) : 0;
+                    var durStr = durMin < 60 ? (durMin + " min") : (Math.floor(durMin / 60) + " h " + (durMin % 60) + " min");
+                    return loc ? (loc + " (" + durStr + ")") : durStr;
+                }
+                function rebuildStopLocationsAndFinish() {
+                    for (var ri = 0; ri < rowsData.length; ri++) {
+                        var parts = rowsData[ri]._locationParts;
+                        var strs = [];
+                        for (var p = 0; p < parts.length; p++) {
+                            strs.push(formatStopWithDuration(parts[p]));
+                        }
+                        rowsData[ri].StopLocations = strs.join("; ");
+                    }
+                    finishDeviceAndContinue();
+                }
+                if (fallbackList.length === 0) {
+                    rebuildStopLocationsAndFinish();
+                    return;
+                }
+                showProgress("Geotab address lookup unavailable; using OpenStreetMap (Nominatim)…");
+                runNominatimFallback(fallbackList, rowsData, coordToRowEntry, "Looking up addresses (OpenStreetMap)", rebuildStopLocationsAndFinish);
             });
         }, function (err) {
             hideProgress();

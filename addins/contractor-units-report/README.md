@@ -49,7 +49,7 @@ MyGeotab Add-In that generates a **Contractor Units Activity Report** for the gr
 
 ## Known limitations
 
-- **Stop locations**: For stops outside home, the add-in uses the MyGeotab **GetAddresses** API to resolve coordinates to street addresses. If the stop is inside a known zone, the zone name is shown. If address lookup fails or is unavailable, coordinates (Lat,Long) are shown as fallback.
+- **Stop locations**: For stops outside home, the add-in resolves coordinates to street addresses by trying the MyGeotab **GetAddresses** API first. If Geotab returns no address (or the call fails), it falls back to **OpenStreetMap Nominatim** (free, no API key; 1 request per second). If the stop is inside a known zone, the zone name is shown. If both lookups fail, coordinates (Lat,Long) are shown.
 - **Large fleets / long ranges**: All work is done in the browser. Very large date ranges or many devices may cause slow runs or high memory use. Use bounded ranges (e.g. one month) for large fleets.
 - **Group id**: The report is hardcoded to group **b27A5** ("Contractor Units"). To use another group, the add-in code would need to be changed or extended to support a group selector.
 - **Home zone type**: The add-in looks for a ZoneType whose name contains "Home". If your database uses a different name, you may need to create or rename a ZoneType to match.
