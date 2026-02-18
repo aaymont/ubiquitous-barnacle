@@ -149,6 +149,21 @@
         return Number(lat).toFixed(5) + "," + Number(lng).toFixed(5);
     }
 
+    function formatAddress(addr) {
+        if (!addr) return "";
+        if (typeof addr === "string") return addr;
+        var parts = [];
+        if (addr.street) parts.push(addr.street);
+        if (addr.city) parts.push(addr.city);
+        if (addr.region || addr.state) parts.push(addr.region || addr.state);
+        if (addr.country) parts.push(addr.country);
+        if (addr.postalCode && parts.length > 0) parts.push(addr.postalCode);
+        if (addr.formattedAddress) return addr.formattedAddress;
+        if (addr.displayName) return addr.displayName;
+        if (parts.length > 0) return parts.join(", ");
+        return "";
+    }
+
     function nearestLogRecordAtOrBefore(logs, dateTimeMs) {
         if (!logs || logs.length === 0) return null;
         var best = null;
@@ -442,6 +457,10 @@
                 }
             }
 
+            var rowsData = [];
+            var coordsFlat = [];
+            var coordToRowEntry = [];
+
             for (var di = 0; di < dayKeys.length; di++) {
                 var dayKey = dayKeys[di];
                 var dayStart = new Date(dayKey + "T00:00:00");
@@ -520,13 +539,19 @@
                 var stopCount = stops.length;
                 var totalStoppedMs = 0;
                 for (var si = 0; si < stops.length; si++) totalStoppedMs += stops[si].durationMs;
-                var stopLocations = [];
+                var locationParts = [];
                 for (var sl = 0; sl < stops.length; sl++) {
                     var pos = stops[sl].position;
                     if (!pos || pos.lat == null || pos.lng == null) continue;
                     if (startHomeZone && pointInZone(pos.lat, pos.lng, startHomeZone)) continue;
                     var zoneName = findZoneAtPoint(pos.lat, pos.lng, allZones, startHomeZone ? startHomeZone.id : null);
-                    stopLocations.push(zoneName || formatLatLng(pos.lat, pos.lng));
+                    if (zoneName) {
+                        locationParts.push(zoneName);
+                    } else {
+                        locationParts.push({ needAddress: true, lat: pos.lat, lng: pos.lng });
+                        coordsFlat.push({ latitude: pos.lat, longitude: pos.lng });
+                        coordToRowEntry.push({ rowIndex: di, partIndex: locationParts.length - 1 });
+                    }
                 }
 
                 var shiftStartMs = dayTrips.length ? new Date(dayTrips[0].start).getTime() : null;
@@ -556,7 +581,12 @@
                     }
                 }
 
-                reportRows.push({
+                var stopLocationsStr = [];
+                for (var pi = 0; pi < locationParts.length; pi++) {
+                    var part = locationParts[pi];
+                    stopLocationsStr.push(typeof part === "string" ? part : formatLatLng(part.lat, part.lng));
+                }
+                rowsData.push({
                     Date: dayKey,
                     DeviceName: deviceName,
                     DeviceId: deviceId,
@@ -566,16 +596,62 @@
                     IdleInZoneSeconds: idleInZoneSeconds,
                     IdleOutZoneSeconds: idleOutZoneSeconds,
                     StopCount: stopCount,
-                    StopLocations: stopLocations.join("; "),
+                    StopLocations: stopLocationsStr.join("; "),
                     TotalStoppedTimeSeconds: totalStoppedMs / 1000,
                     AllowedBreakMinutes: allowedBreakMin,
                     BreakStopMatchedMinutes: breakStopMinutes,
                     AdjustedStopCount: adjustedStopCount,
-                    AdjustedStoppedTimeSeconds: adjustedStoppedMs / 1000
+                    AdjustedStoppedTimeSeconds: adjustedStoppedMs / 1000,
+                    _locationParts: locationParts
                 });
             }
 
-            runPerDevice(api, devices, homeZones, allZones, fromStr, toStr, fromDate, toDate, deviceIndex + 1);
+            function finishDeviceAndContinue() {
+                for (var r = 0; r < rowsData.length; r++) {
+                    delete rowsData[r]._locationParts;
+                }
+                for (var r = 0; r < rowsData.length; r++) {
+                    reportRows.push(rowsData[r]);
+                }
+                runPerDevice(api, devices, homeZones, allZones, fromStr, toStr, fromDate, toDate, deviceIndex + 1);
+            }
+
+            if (coordsFlat.length === 0) {
+                finishDeviceAndContinue();
+                return;
+            }
+
+            showProgress("Looking up addresses for " + deviceName + " (" + coordsFlat.length + " locations)…");
+            api.call("GetAddresses", { coordinates: coordsFlat }, function (addresses) {
+                var numAddr = (addresses && addresses.length) ? addresses.length : 0;
+                for (var ai = 0; ai < numAddr && ai < coordToRowEntry.length; ai++) {
+                    var ref = coordToRowEntry[ai];
+                    var part = rowsData[ref.rowIndex]._locationParts[ref.partIndex];
+                    if (part && part.needAddress) {
+                        var addrStr = formatAddress(addresses[ai]);
+                        rowsData[ref.rowIndex]._locationParts[ref.partIndex] = addrStr || formatLatLng(part.lat, part.lng);
+                    }
+                }
+                for (var ri = 0; ri < rowsData.length; ri++) {
+                    var parts = rowsData[ri]._locationParts;
+                    var strs = [];
+                    for (var p = 0; p < parts.length; p++) {
+                        strs.push(typeof parts[p] === "string" ? parts[p] : formatLatLng(parts[p].lat, parts[p].lng));
+                    }
+                    rowsData[ri].StopLocations = strs.join("; ");
+                }
+                finishDeviceAndContinue();
+            }, function (err) {
+                for (var ri = 0; ri < rowsData.length; ri++) {
+                    var parts = rowsData[ri]._locationParts;
+                    var strs = [];
+                    for (var p = 0; p < parts.length; p++) {
+                        strs.push(typeof parts[p] === "string" ? parts[p] : formatLatLng(parts[p].lat, parts[p].lng));
+                    }
+                    rowsData[ri].StopLocations = strs.join("; ");
+                }
+                finishDeviceAndContinue();
+            });
         }, function (err) {
             hideProgress();
             setGenerateEnabled(true);
