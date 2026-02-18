@@ -3,7 +3,7 @@
 (function () {
     "use strict";
 
-    var CACHE_BUST = "5"; /* Bump when deploying; also update ?v= on styles.css, music.js, and addin.js in index.html */
+    var CACHE_BUST = "6"; /* Bump when deploying; also update ?v= on styles.css, music.js, and addin.js in index.html */
 
     var apiRef = null;
     var POLL_INTERVAL_MS = 5000;
@@ -187,7 +187,7 @@
         return [rootMidi + r, rootMidi + fifth, rootMidi + third, rootMidi + fifth];
     }
 
-    function startClassicalLoop(tripsOrName, exceptionsOrCount, deviceNameOrSummary) {
+    function startClassicalLoop(tripsOrName, exceptionsOrCount, deviceNameOrSummary, tableIsDark) {
         if (typeof Tone === "undefined" || !audioStarted) return;
         Tone.Transport.cancel();
         if (window.FleetSymphonyMusic) window.FleetSymphonyMusic.stopLoop();
@@ -203,8 +203,7 @@
             exceptionCount = exceptionsOrCount ? exceptionsOrCount.length : 0;
             lastTripSummary = tripsOrName && tripsOrName.length ? (tripsOrName[tripsOrName.length - 1].distance != null ? tripsOrName[tripsOrName.length - 1].distance.toFixed(1) + " km" : "—") : "—";
         }
-        var dark = darknessFromExceptions(exceptionCount);
-        var isDark = dark >= 0.5;
+        var isDark = typeof tableIsDark === "boolean" ? tableIsDark : (darknessFromExceptions(exceptionCount) >= 0.5);
         var rootMidi = ROOT_MIDI + (hashString(deviceName) % 12);
         var mood = isDark ? "dark" : "light";
         var bpm = window.FleetSymphonyMusic ? window.FleetSymphonyMusic.getBpm(mood) : 96;
@@ -222,7 +221,7 @@
         updateNowPlayingCards(bpm, keyFromVehicleName(deviceName), moodLabel, lastTripSummary);
     }
 
-    function playVehicleFromTable(deviceId, deviceName, exceptionCount, lastTripSummary, api) {
+    function playVehicleFromTable(deviceId, deviceName, exceptionCount, lastTripSummary, isDark, api) {
         function doStart() {
             if (!audioStarted) {
                 Tone.start().then(function () {
@@ -233,14 +232,15 @@
                     drawMeter();
                     transportStarted = true;
                     Tone.Transport.start();
-                    startClassicalLoop(deviceName, exceptionCount, lastTripSummary);
+                    startClassicalLoop(deviceName, exceptionCount, lastTripSummary, isDark);
                     if (getEl("btn-pause")) getEl("btn-pause").disabled = false;
                     if (getEl("btn-stop")) getEl("btn-stop").disabled = false;
                 });
             } else {
                 transportStarted = true;
+                setMasterVolume(getEl("volume-slider") ? parseInt(getEl("volume-slider").value, 10) : 25);
                 Tone.Transport.start();
-                startClassicalLoop(deviceName, exceptionCount, lastTripSummary);
+                startClassicalLoop(deviceName, exceptionCount, lastTripSummary, isDark);
                 if (getEl("btn-pause")) getEl("btn-pause").disabled = false;
                 if (getEl("btn-stop")) getEl("btn-stop").disabled = false;
             }
@@ -372,6 +372,13 @@
             calls.push(["Get", { typeName: "Trip", search: { deviceSearch: { id: devId }, fromDate: fromStr, toDate: toStr }, resultsLimit: 10 }]);
         }
         api.multiCall(calls, function (results) {
+            var excCounts = [];
+            for (i = 0; i < devices.length; i++) {
+                excCounts.push((results[i * 2] || []).length);
+            }
+            var sorted = excCounts.slice().sort(function (a, b) { return a - b; });
+            var pctIndex = Math.min(sorted.length - 1, Math.floor(0.7 * sorted.length));
+            var darkThreshold = sorted.length > 0 ? sorted[pctIndex] : 0;
             tbody.innerHTML = "";
             for (i = 0; i < devices.length; i++) {
                 var d = devices[i];
@@ -380,8 +387,8 @@
                 var excList = results[i * 2] || [];
                 var tripList = results[i * 2 + 1] || [];
                 var excCount = excList.length;
-                var dark = darknessFromExceptions(excCount);
-                var moodLabel = dark >= 0.5 ? "Minor (dark)" : "Major (light)";
+                var isDark = excCount >= darkThreshold && darkThreshold > 0;
+                var moodLabel = isDark ? "Minor (dark)" : "Major (light)";
                 if (excCount > 0) moodLabel = moodLabel + " (" + excCount + " ex)";
                 var lastTrip = "—";
                 if (tripList.length > 0) {
@@ -395,7 +402,7 @@
                 var tr = document.createElement("tr");
                 tr.innerHTML =
                     "<td>" + escapeHtml(name) + "</td>" +
-                    "<td><button type=\"button\" class=\"btn btn-primary btn-play\" data-device-id=\"" + escapeHtml(d.id) + "\" data-device-name=\"" + escapeHtml(name) + "\" data-exception-count=\"" + excCount + "\" data-last-trip=\"" + escapeHtml(lastTrip) + "\" aria-label=\"Play " + escapeHtml(name) + "\">Play</button></td>" +
+                    "<td><button type=\"button\" class=\"btn btn-primary btn-play\" data-device-id=\"" + escapeHtml(d.id) + "\" data-device-name=\"" + escapeHtml(name) + "\" data-exception-count=\"" + excCount + "\" data-last-trip=\"" + escapeHtml(lastTrip) + "\" data-is-dark=\"" + (isDark ? "1" : "0") + "\" aria-label=\"Play " + escapeHtml(name) + "\">Play</button></td>" +
                     "<td>" + escapeHtml(key) + "</td>" +
                     "<td>" + escapeHtml(moodLabel) + "</td>" +
                     "<td>" + escapeHtml(lastTrip) + "</td>";
@@ -417,7 +424,8 @@
                 var name = this.getAttribute("data-device-name");
                 var count = parseInt(this.getAttribute("data-exception-count"), 10) || 0;
                 var lastTrip = this.getAttribute("data-last-trip") || "—";
-                playVehicleFromTable(id, name, count, lastTrip, api);
+                var isDark = this.getAttribute("data-is-dark") === "1";
+                playVehicleFromTable(id, name, count, lastTrip, isDark, api);
             };
         }
     }
@@ -672,6 +680,7 @@
                     });
                 } else {
                     transportStarted = true;
+                    setMasterVolume(volumeSlider ? parseInt(volumeSlider.value, 10) : 25);
                     Tone.Transport.start();
                     if (modeToggle && modeToggle.value === "live") {
                         pollStatus(api);
@@ -707,7 +716,10 @@
         if (btnStop) {
             btnStop.addEventListener("click", function () {
                 if (window.FleetSymphonyMusic) window.FleetSymphonyMusic.stopLoop();
-                if (typeof Tone !== "undefined") Tone.Transport.stop();
+                if (typeof Tone !== "undefined") {
+                    Tone.Transport.stop();
+                    Tone.Destination.volume.value = -100;
+                }
                 transportStarted = false;
                 stopPolling();
                 if (btnPause) btnPause.disabled = true;
