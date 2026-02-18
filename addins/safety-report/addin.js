@@ -4,14 +4,13 @@
     "use strict";
 
     var apiRef = null;
-    var INACTIVITY_MS = 20000;
-    var DRAIN_INTERVAL_MS = 200;
-    var DRAIN_PERCENT_PER_INTERVAL = 0.3;
+    var INACTIVITY_MS = 5000;
+    var FADE_MS = 4000;
     var ACTIVITY_THROTTLE_MS = 250;
     var POWER_DECAY_AFTER_MS = 700;
-    var POWER_DECAY_AMOUNT = 3;
     var POWER_PER_REVOLUTION = 20;
     var POWER_PER_CLICK = 8;
+    var COUNTDOWN_CIRCUMFERENCE = 2 * Math.PI * 54;
     var POWER_RING_R = 48;
     var POWER_RING_CIRCUMFERENCE = 2 * Math.PI * POWER_RING_R;
     var WHEEL_CX = 100;
@@ -20,12 +19,14 @@
     var WHEEL_OUTER_R = 85;
 
     var inactivityTimerId = null;
-    var drainIntervalId = null;
+    var fadeStartTime = null;
+    var fadeAnimationId = null;
     var powerDecayTimerId = null;
     var lastActivityAt = 0;
     var throttleScheduled = false;
+    var phase = "visible";
     var presentationMode = true;
-    var visibility = 100;
+    var power = 0;
     var lastWheelAngle = null;
     var accumulatedAngle = 0;
     var wheelRotation = 0;
@@ -33,6 +34,9 @@
 
     var reportEl = null;
     var overlayEl = null;
+    var countdownRingContainer = null;
+    var countdownRing = null;
+    var countdownText = null;
     var generatorSection = null;
     var powerRing = null;
     var powerPercentEl = null;
@@ -51,17 +55,20 @@
 
     function resetInactivityTimer() {
         lastActivityAt = Date.now();
+        if (inactivityTimerId) {
+            clearTimeout(inactivityTimerId);
+            inactivityTimerId = null;
+        }
+        if (presentationMode && phase === "visible") {
+            inactivityTimerId = setTimeout(startFade, INACTIVITY_MS);
+        }
         updateInactivityLabel();
     }
 
     function updateInactivityLabel() {
         if (!inactivityLabel) return;
-        if (!presentationMode) {
+        if (!presentationMode || phase !== "visible") {
             inactivityLabel.textContent = "Inactivity: —";
-            return;
-        }
-        if (visibility < 100) {
-            inactivityLabel.textContent = "Charge: " + Math.round(visibility) + "%";
             return;
         }
         var elapsed = Math.floor((Date.now() - lastActivityAt) / 1000);
@@ -69,56 +76,90 @@
         inactivityLabel.textContent = "Inactivity: " + remaining + "s";
     }
 
-    function applyVisibility() {
-        visibility = Math.max(0, Math.min(100, visibility));
-        if (overlayEl) {
-            if (visibility >= 100) {
-                overlayEl.setAttribute("aria-hidden", "true");
-                if (generatorSection) generatorSection.classList.add("hidden");
-                if (overlayEl.classList.contains("visible")) {
-                    overlayEl.style.opacity = "0";
-                    setTimeout(function () {
-                        overlayEl.classList.remove("visible");
-                        overlayEl.style.opacity = "";
-                    }, 450);
-                } else {
-                    overlayEl.classList.remove("visible");
-                    overlayEl.style.opacity = "";
-                }
-            } else {
-                overlayEl.classList.add("visible");
-                overlayEl.setAttribute("aria-hidden", "false");
-                overlayEl.style.opacity = String(1 - visibility / 100);
-                if (generatorSection) generatorSection.classList.remove("hidden");
-            }
+    function startFade() {
+        inactivityTimerId = null;
+        if (phase !== "visible" || !presentationMode) return;
+        phase = "fading";
+        reportEl.classList.add("fade-out-during");
+        overlayEl.classList.add("visible", "during-fade");
+        overlayEl.setAttribute("aria-hidden", "false");
+        countdownRingContainer.classList.remove("hidden");
+        generatorSection.classList.add("hidden");
+        countdownText.textContent = "4";
+        countdownRing.setAttribute("stroke-dashoffset", "0");
+        fadeStartTime = Date.now();
+        tickCountdown();
+    }
+
+    function tickCountdown() {
+        if (phase !== "fading") return;
+        var elapsed = Date.now() - fadeStartTime;
+        if (elapsed >= FADE_MS) {
+            goFullyBlack();
+            return;
         }
+        var remaining = (FADE_MS - elapsed) / 1000;
+        var offset = (elapsed / FADE_MS) * COUNTDOWN_CIRCUMFERENCE;
+        countdownRing.setAttribute("stroke-dashoffset", String(offset));
+        countdownText.textContent = remaining <= 0.5 ? "0" : String(Math.ceil(remaining));
+        fadeAnimationId = requestAnimationFrame(tickCountdown);
+    }
+
+    function goFullyBlack() {
+        if (fadeAnimationId) {
+            cancelAnimationFrame(fadeAnimationId);
+            fadeAnimationId = null;
+        }
+        phase = "black";
+        reportEl.classList.add("fade-fully-black");
+        overlayEl.classList.remove("during-fade");
+        countdownRingContainer.classList.add("hidden");
+        generatorSection.classList.remove("hidden");
+        power = 0;
+        lastWheelAngle = null;
+        accumulatedAngle = 0;
+        lastWheelActivityAt = 0;
         updatePowerUI();
-        updateInactivityLabel();
-    }
-
-    function tickDrain() {
-        if (!presentationMode || visibility <= 0) return;
-        var inactive = Date.now() - lastActivityAt;
-        if (inactive < INACTIVITY_MS) return;
-        visibility = Math.max(0, visibility - DRAIN_PERCENT_PER_INTERVAL);
-        applyVisibility();
-    }
-
-    function startDrainInterval() {
-        if (drainIntervalId) return;
-        drainIntervalId = setInterval(tickDrain, DRAIN_INTERVAL_MS);
-    }
-
-    function stopDrainInterval() {
-        if (drainIntervalId) {
-            clearInterval(drainIntervalId);
-            drainIntervalId = null;
+        if (powerDecayTimerId) {
+            clearTimeout(powerDecayTimerId);
+            powerDecayTimerId = null;
         }
+    }
+
+    function cancelFadeAndRestore() {
+        if (phase !== "fading") return;
+        if (fadeAnimationId) {
+            cancelAnimationFrame(fadeAnimationId);
+            fadeAnimationId = null;
+        }
+        phase = "visible";
+        reportEl.classList.remove("fade-out", "fade-out-during", "fade-fully-black");
+        overlayEl.classList.remove("visible", "during-fade");
+        overlayEl.setAttribute("aria-hidden", "true");
+        countdownRingContainer.classList.add("hidden");
+        generatorSection.classList.add("hidden");
+        resetInactivityTimer();
+    }
+
+    function restoreFromBlack() {
+        phase = "visible";
+        reportEl.classList.remove("fade-out", "fade-out-during", "fade-fully-black");
+        overlayEl.classList.remove("visible");
+        overlayEl.setAttribute("aria-hidden", "true");
+        countdownRingContainer.classList.add("hidden");
+        generatorSection.classList.add("hidden");
+        resetInactivityTimer();
     }
 
     function onActivity() {
         if (!presentationMode) return;
-        resetInactivityTimer();
+        if (phase === "fading") {
+            cancelFadeAndRestore();
+            return;
+        }
+        if (phase === "visible") {
+            resetInactivityTimer();
+        }
     }
 
     function throttleActivity(fn) {
@@ -139,7 +180,7 @@
     }
 
     function handleWheelMouseMove(e) {
-        if (visibility >= 100) return;
+        if (phase !== "black") return;
         var rect = getEl("wheel-svg").getBoundingClientRect();
         var scaleX = 200 / rect.width;
         var scaleY = 200 / rect.height;
@@ -158,7 +199,7 @@
             wheelRotation += delta;
             while (accumulatedAngle >= 2 * Math.PI) {
                 accumulatedAngle -= 2 * Math.PI;
-                visibility = Math.min(100, visibility + POWER_PER_REVOLUTION);
+                power = Math.min(100, power + POWER_PER_REVOLUTION);
             }
             if (wheelSpokes) {
                 wheelSpokes.setAttribute("transform", "translate(100,100) rotate(" + (wheelRotation * 180 / Math.PI) + ")");
@@ -171,60 +212,66 @@
             powerDecayTimerId = null;
         }
         powerDecayTimerId = setTimeout(schedulePowerDecay, POWER_DECAY_AFTER_MS);
-        applyVisibility();
-        if (visibility >= 100) {
-            resetInactivityTimer();
+        updatePowerUI();
+        if (power >= 100) {
+            restoreFromBlack();
         }
     }
 
     function schedulePowerDecay() {
         powerDecayTimerId = null;
         var idle = Date.now() - lastWheelActivityAt;
-        if (idle >= POWER_DECAY_AFTER_MS && visibility < 100) {
-            visibility = Math.max(0, visibility - POWER_DECAY_AMOUNT);
-            applyVisibility();
+        if (idle >= POWER_DECAY_AFTER_MS && phase === "black") {
+            power = Math.max(0, power - 5);
+            updatePowerUI();
             powerDecayTimerId = setTimeout(schedulePowerDecay, 500);
         }
     }
 
     function handleWheelClick(e) {
-        if (visibility >= 100) return;
+        if (phase !== "black") return;
         e.preventDefault();
-        visibility = Math.min(100, visibility + POWER_PER_CLICK);
+        power = Math.min(100, power + POWER_PER_CLICK);
         lastWheelActivityAt = Date.now();
         if (powerDecayTimerId) {
             clearTimeout(powerDecayTimerId);
             powerDecayTimerId = null;
         }
         powerDecayTimerId = setTimeout(schedulePowerDecay, POWER_DECAY_AFTER_MS);
-        applyVisibility();
-        if (visibility >= 100) {
-            resetInactivityTimer();
+        updatePowerUI();
+        if (power >= 100) {
+            restoreFromBlack();
         }
     }
 
     function updatePowerUI() {
-        var pct = Math.round(visibility);
+        var pct = Math.round(power);
         if (powerPercentEl) powerPercentEl.textContent = pct + "%";
         if (powerRing) {
-            var offset = (1 - visibility / 100) * POWER_RING_CIRCUMFERENCE;
+            var offset = (1 - power / 100) * POWER_RING_CIRCUMFERENCE;
             powerRing.setAttribute("stroke-dashoffset", String(offset));
         }
     }
 
     function pauseAllAndShowVisible() {
-        stopDrainInterval();
+        if (inactivityTimerId) {
+            clearTimeout(inactivityTimerId);
+            inactivityTimerId = null;
+        }
+        if (fadeAnimationId) {
+            cancelAnimationFrame(fadeAnimationId);
+            fadeAnimationId = null;
+        }
         if (powerDecayTimerId) {
             clearTimeout(powerDecayTimerId);
             powerDecayTimerId = null;
         }
-        visibility = 100;
-        if (overlayEl) {
-            overlayEl.classList.remove("visible");
-            overlayEl.setAttribute("aria-hidden", "true");
-            overlayEl.style.opacity = "";
-        }
-        if (generatorSection) generatorSection.classList.add("hidden");
+        phase = "visible";
+        reportEl.classList.remove("fade-out", "fade-out-during", "fade-fully-black");
+        overlayEl.classList.remove("visible", "during-fade");
+        overlayEl.setAttribute("aria-hidden", "true");
+        countdownRingContainer.classList.add("hidden");
+        generatorSection.classList.add("hidden");
         updateInactivityLabel();
     }
 
@@ -344,7 +391,6 @@
                 pauseAllAndShowVisible();
             } else {
                 resetInactivityTimer();
-                startDrainInterval();
             }
         });
     }
@@ -352,6 +398,9 @@
     function cacheElements() {
         reportEl = getEl("report-container");
         overlayEl = getEl("inactivity-overlay");
+        countdownRingContainer = getEl("countdown-ring-container");
+        countdownRing = getEl("countdown-ring");
+        countdownText = getEl("countdown-text");
         generatorSection = getEl("generator-section");
         powerRing = getEl("power-ring");
         powerPercentEl = getEl("power-percent");
@@ -363,6 +412,9 @@
         liveStatusContent = getEl("live-status-content");
         liveStatusLoading = getEl("live-status-loading");
         liveStatusError = getEl("live-status-error");
+        if (countdownRing) {
+            countdownRing.setAttribute("stroke-dasharray", String(COUNTDOWN_CIRCUMFERENCE));
+        }
         if (powerRing) {
             powerRing.setAttribute("stroke-dasharray", String(POWER_RING_CIRCUMFERENCE));
             powerRing.setAttribute("stroke-dashoffset", String(POWER_RING_CIRCUMFERENCE));
@@ -378,18 +430,17 @@
                 bindUi(api);
                 loadDevices(api);
                 presentationMode = presentationCheckbox ? presentationCheckbox.checked : true;
-                visibility = 100;
-                applyVisibility();
                 resetInactivityTimer();
-                if (presentationMode) startDrainInterval();
                 var inactivityInterval = setInterval(updateInactivityLabel, 1000);
                 if (typeof callback === "function") callback();
             },
             focus: function (api, state) {
                 apiRef = api;
                 pauseAllAndShowVisible();
+                phase = "visible";
+                reportEl.classList.remove("fade-out", "fade-fully-black");
+                overlayEl.classList.remove("visible");
                 resetInactivityTimer();
-                if (presentationMode) startDrainInterval();
             },
             blur: function (api, state) {
                 pauseAllAndShowVisible();
