@@ -31,6 +31,7 @@
     var transportStarted = false;
 
     var melodySynth = null;
+    var altoSynth = null;
     var chordSynth = null;
     var bassSynth = null;
     var alarmSynth = null;
@@ -91,16 +92,20 @@
             setMasterVolume(vol);
             melodySynth = new Tone.Synth({
                 oscillator: { type: "triangle" },
-                envelope: { attack: 0.05, decay: 0.2, sustain: 0.5, release: 0.6 }
+                envelope: { attack: 0.03, decay: 0.15, sustain: 0.6, release: 0.4 }
+            }).connect(reverb);
+            altoSynth = new Tone.Synth({
+                oscillator: { type: "sine" },
+                envelope: { attack: 0.04, decay: 0.2, sustain: 0.5, release: 0.5 }
             }).connect(reverb);
             chordSynth = new Tone.PolySynth(Tone.Synth, {
                 maxPolyphony: 6,
                 oscillator: { type: "sine" },
-                envelope: { attack: 0.1, decay: 0.3, sustain: 0.6, release: 1 }
+                envelope: { attack: 0.06, decay: 0.25, sustain: 0.65, release: 0.8 }
             }).connect(reverb);
             bassSynth = new Tone.Synth({
                 oscillator: { type: "sine" },
-                envelope: { attack: 0.02, decay: 0.3, sustain: 0.4, release: 0.5 }
+                envelope: { attack: 0.02, decay: 0.2, sustain: 0.5, release: 0.35 }
             }).connect(reverb);
             alarmSynth = new Tone.Synth({
                 oscillator: { type: "sine" },
@@ -135,6 +140,7 @@
                 Tone.Transport.stop();
                 Tone.Transport.cancel();
                 if (melodySynth) melodySynth.dispose();
+                if (altoSynth) altoSynth.dispose();
                 if (chordSynth) chordSynth.dispose();
                 if (bassSynth) bassSynth.dispose();
                 if (alarmSynth) alarmSynth.dispose();
@@ -143,7 +149,7 @@
                 if (meterAnalyser) meterAnalyser.dispose();
             }
         } catch (e) {}
-        melodySynth = chordSynth = bassSynth = alarmSynth = reverb = limiter = meterAnalyser = null;
+        melodySynth = altoSynth = chordSynth = bassSynth = alarmSynth = reverb = limiter = meterAnalyser = null;
         audioStarted = false;
         transportStarted = false;
     }
@@ -171,6 +177,87 @@
         }
         var lightProg = [[0, 4, 7], [5, 9, 12], [7, 11, 14], [0, 4, 7]];
         return lightProg[barIndex % 4];
+    }
+
+    function getBassQuarterNotes(chordSemitones, rootMidi) {
+        var r = chordSemitones[0];
+        var third = chordSemitones[1];
+        var fifth = chordSemitones[2] >= 12 ? chordSemitones[2] - 12 : chordSemitones[2];
+        return [rootMidi + r, rootMidi + fifth, rootMidi + third, rootMidi + fifth];
+    }
+
+    function buildPlaybackSong(trips, exceptions, deviceName) {
+        if (typeof Tone === "undefined" || !audioStarted) return;
+        Tone.Transport.cancel();
+        var exceptionCount = exceptions ? exceptions.length : 0;
+        var dark = darknessFromExceptions(exceptionCount);
+        var isDark = dark >= 0.5;
+        var rootMidi = ROOT_MIDI + (hashString(deviceName) % 12);
+        var bpm = Math.round(bpmFromDarkness(dark));
+        Tone.Transport.bpm.value = Math.max(40, Math.min(140, bpm));
+        var scale = getScale(isDark);
+        trips = trips || [];
+        var totalBars = 0;
+        for (var i = 0; i < trips.length; i++) {
+            var driveMin = (trips[i].driveTime || 0) / 1000 / 60;
+            totalBars += Math.max(2, Math.min(8, Math.round(driveMin * 0.5)));
+        }
+        totalBars = Math.max(8, Math.min(32, totalBars));
+        var beatDuration = 60 / Tone.Transport.bpm.value;
+        var eighthDuration = beatDuration / 2;
+        var barDuration = beatDuration * 4;
+        var t0 = Tone.now();
+
+        var phraseA = [{ d: 4, e: 2 }, { d: 4, e: 2 }, { d: 5, e: 1 }, { d: 4, e: 1 }, { d: 3, e: 2 }, { d: 2, e: 2 }, { d: 1, e: 2 }, { d: 0, e: 4 }];
+        var phraseB = [{ d: 2, e: 2 }, { d: 3, e: 2 }, { d: 4, e: 2 }, { d: 3, e: 2 }, { d: 2, e: 2 }, { d: 1, e: 2 }, { d: 0, e: 2 }, { d: 0, e: 4 }];
+        var melodyRoot = rootMidi + 24;
+        var altoRoot = rootMidi + 12;
+
+        for (var bar = 0; bar < totalBars; bar++) {
+            var barTime = t0 + bar * barDuration;
+            var chord = getClassicalProgression(isDark, bar);
+
+            if (chordSynth) {
+                var chordMidi = rootMidi + 12;
+                chordSynth.triggerAttackRelease(Tone.Frequency(chordMidi + chord[0], "midi").toFrequency(), beatDuration * 1.9, barTime);
+                chordSynth.triggerAttackRelease(Tone.Frequency(chordMidi + chord[1], "midi").toFrequency(), beatDuration * 1.9, barTime);
+                chordSynth.triggerAttackRelease(Tone.Frequency(chordMidi + chord[2], "midi").toFrequency(), beatDuration * 1.9, barTime);
+                chordSynth.triggerAttackRelease(Tone.Frequency(chordMidi + chord[0], "midi").toFrequency(), beatDuration * 1.9, barTime + beatDuration * 2);
+                chordSynth.triggerAttackRelease(Tone.Frequency(chordMidi + chord[1], "midi").toFrequency(), beatDuration * 1.9, barTime + beatDuration * 2);
+                chordSynth.triggerAttackRelease(Tone.Frequency(chordMidi + chord[2], "midi").toFrequency(), beatDuration * 1.9, barTime + beatDuration * 2);
+            }
+
+            var bassNotes = getBassQuarterNotes(chord, rootMidi);
+            if (bassSynth) {
+                for (var b = 0; b < 4; b++) {
+                    bassSynth.triggerAttackRelease(Tone.Frequency(bassNotes[b], "midi").toFrequency(), beatDuration * 0.85, barTime + b * beatDuration);
+                }
+            }
+        }
+
+        for (var p = 0; p < totalBars; p += 2) {
+            var phraseStart = t0 + p * barDuration;
+            var phrase = (p / 2) % 2 === 0 ? phraseA : phraseB;
+            var elapsedEighths = 0;
+            for (var i = 0; i < phrase.length; i++) {
+                var degree = phrase[i].d;
+                var eighths = phrase[i].e;
+                if (degree >= scale.length) degree = scale.length - 1;
+                var melMidi = melodyRoot + scale[degree];
+                var altoDegree = Math.max(0, degree - 2);
+                var altoMidi = altoRoot + scale[altoDegree];
+                var noteStart = phraseStart + elapsedEighths * eighthDuration;
+                var noteDur = eighths * eighthDuration * 0.9;
+                if (melodySynth) melodySynth.triggerAttackRelease(Tone.Frequency(melMidi, "midi").toFrequency(), noteDur, noteStart);
+                if (altoSynth) altoSynth.triggerAttackRelease(Tone.Frequency(altoMidi, "midi").toFrequency(), noteDur, noteStart);
+                elapsedEighths += eighths;
+            }
+        }
+
+        var lastTripSummary = trips.length ? (trips[trips.length - 1].distance != null ? trips[trips.length - 1].distance.toFixed(1) + " km" : "—") : "—";
+        var moodLabel = isDark ? "Minor (dark)" : "Major (light)";
+        if (exceptionCount > 0) moodLabel = moodLabel + " (" + exceptionCount + " ex)";
+        updateNowPlayingCards(Tone.Transport.bpm.value, keyFromVehicleName(deviceName), moodLabel, lastTripSummary);
     }
 
     function scheduleLiveDriving(status) {
@@ -208,62 +295,6 @@
                 midiOut.send([0x80, 72, 0]);
             } catch (err) {}
         }
-    }
-
-    function buildPlaybackSong(trips, exceptions, deviceName) {
-        if (typeof Tone === "undefined" || !audioStarted) return;
-        Tone.Transport.cancel();
-        var exceptionCount = exceptions ? exceptions.length : 0;
-        var dark = darknessFromExceptions(exceptionCount);
-        var isDark = dark >= 0.5;
-        var rootMidi = ROOT_MIDI + (hashString(deviceName) % 12);
-        var bpm = Math.round(bpmFromDarkness(dark));
-        Tone.Transport.bpm.value = Math.max(40, Math.min(140, bpm));
-        var scale = getScale(isDark);
-        trips = trips || [];
-        var totalBars = 0;
-        for (var i = 0; i < trips.length; i++) {
-            var driveMin = (trips[i].driveTime || 0) / 1000 / 60;
-            totalBars += Math.max(2, Math.min(8, Math.round(driveMin * 0.5)));
-        }
-        totalBars = Math.max(8, Math.min(32, totalBars));
-        var beatDuration = 60 / Tone.Transport.bpm.value;
-        var barDuration = beatDuration * 4;
-        var t0 = Tone.now();
-
-        for (var bar = 0; bar < totalBars; bar++) {
-            var barTime = t0 + bar * barDuration;
-            var chord = getClassicalProgression(isDark, bar);
-            for (var n = 0; n < chord.length; n++) {
-                var midi = rootMidi + 12 + chord[n];
-                var freq = Tone.Frequency(midi, "midi").toFrequency();
-                if (chordSynth) chordSynth.triggerAttackRelease(freq, barDuration * 0.95, barTime);
-            }
-            var bassRoot = rootMidi + chord[0];
-            var bassFifth = rootMidi + chord[2];
-            if (bassSynth) {
-                bassSynth.triggerAttackRelease(Tone.Frequency(bassRoot, "midi").toFrequency(), beatDuration * 1.5, barTime);
-                bassSynth.triggerAttackRelease(Tone.Frequency(bassFifth, "midi").toFrequency(), beatDuration * 1.5, barTime + beatDuration * 2);
-            }
-        }
-
-        var melodyBars = totalBars;
-        var melodyScale = scale;
-        var melodyRoot = rootMidi + 24;
-        var phrase = [0, 1, 2, 1, 0, 2, 3, 2];
-        for (var m = 0; m < melodyBars * 2; m++) {
-            var beatTime = t0 + m * beatDuration * 2;
-            var degree = phrase[m % phrase.length];
-            if (isDark) degree = Math.min(degree, melodyScale.length - 1);
-            var midiNote = melodyRoot + melodyScale[degree];
-            var noteDur = isDark ? 0.6 : 0.45;
-            if (melodySynth) melodySynth.triggerAttackRelease(Tone.Frequency(midiNote, "midi").toFrequency(), noteDur, beatTime);
-        }
-
-        var lastTripSummary = trips.length ? (trips[trips.length - 1].distance != null ? trips[trips.length - 1].distance.toFixed(1) + " km" : "—") : "—";
-        var moodLabel = isDark ? "Minor (dark)" : "Major (light)";
-        if (exceptionCount > 0) moodLabel = moodLabel + " (" + exceptionCount + " ex)";
-        updateNowPlayingCards(Tone.Transport.bpm.value, keyFromVehicleName(deviceName), moodLabel, lastTripSummary);
     }
 
     function updateNowPlayingCards(bpm, key, safetyMood, lastTrip) {
