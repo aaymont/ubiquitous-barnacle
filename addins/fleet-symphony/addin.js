@@ -3,7 +3,7 @@
 (function () {
     "use strict";
 
-    var CACHE_BUST = "3"; /* Bump when deploying; also update ?v= on styles.css and addin.js in index.html */
+    var CACHE_BUST = "4"; /* Bump when deploying; also update ?v= on styles.css, music.js, and addin.js in index.html */
 
     var apiRef = null;
     var POLL_INTERVAL_MS = 5000;
@@ -87,6 +87,7 @@
         try {
             Tone.Destination.volume.value = -12;
             limiter = new Tone.Limiter(-1).toDestination();
+            /* All synths connect via reverb -> limiter -> Destination (system speakers/headphones). MIDI is optional. */
             reverb = new Tone.Reverb({ decay: 2.5, wet: 0.35 }).connect(limiter);
             var vol = (getEl("volume-slider") && getEl("volume-slider").value) ? parseInt(getEl("volume-slider").value, 10) : 25;
             setMasterVolume(vol);
@@ -186,78 +187,29 @@
         return [rootMidi + r, rootMidi + fifth, rootMidi + third, rootMidi + fifth];
     }
 
-    function buildPlaybackSong(trips, exceptions, deviceName) {
+    function startClassicalLoop(trips, exceptions, deviceName) {
         if (typeof Tone === "undefined" || !audioStarted) return;
         Tone.Transport.cancel();
+        if (window.FleetSymphonyMusic) window.FleetSymphonyMusic.stopLoop();
         var exceptionCount = exceptions ? exceptions.length : 0;
         var dark = darknessFromExceptions(exceptionCount);
         var isDark = dark >= 0.5;
         var rootMidi = ROOT_MIDI + (hashString(deviceName) % 12);
-        var bpm = Math.round(bpmFromDarkness(dark));
-        Tone.Transport.bpm.value = Math.max(40, Math.min(140, bpm));
-        var scale = getScale(isDark);
-        trips = trips || [];
-        var totalBars = 0;
-        for (var i = 0; i < trips.length; i++) {
-            var driveMin = (trips[i].driveTime || 0) / 1000 / 60;
-            totalBars += Math.max(2, Math.min(8, Math.round(driveMin * 0.5)));
+        var mood = isDark ? "dark" : "light";
+        var bpm = window.FleetSymphonyMusic ? window.FleetSymphonyMusic.getBpm(mood) : 96;
+        Tone.Transport.bpm.value = bpm;
+        if (window.FleetSymphonyMusic && melodySynth && altoSynth && chordSynth && bassSynth) {
+            window.FleetSymphonyMusic.scheduleLoop(mood, rootMidi, {
+                melody: melodySynth,
+                alto: altoSynth,
+                chord: chordSynth,
+                bass: bassSynth
+            });
         }
-        totalBars = Math.max(8, Math.min(32, totalBars));
-        var beatDuration = 60 / Tone.Transport.bpm.value;
-        var eighthDuration = beatDuration / 2;
-        var barDuration = beatDuration * 4;
-        var t0 = Tone.now();
-
-        var phraseA = [{ d: 4, e: 2 }, { d: 4, e: 2 }, { d: 5, e: 1 }, { d: 4, e: 1 }, { d: 3, e: 2 }, { d: 2, e: 2 }, { d: 1, e: 2 }, { d: 0, e: 4 }];
-        var phraseB = [{ d: 2, e: 2 }, { d: 3, e: 2 }, { d: 4, e: 2 }, { d: 3, e: 2 }, { d: 2, e: 2 }, { d: 1, e: 2 }, { d: 0, e: 2 }, { d: 0, e: 4 }];
-        var melodyRoot = rootMidi + 24;
-        var altoRoot = rootMidi + 12;
-
-        for (var bar = 0; bar < totalBars; bar++) {
-            var barTime = t0 + bar * barDuration;
-            var chord = getClassicalProgression(isDark, bar);
-
-            if (chordSynth) {
-                var chordMidi = rootMidi + 12;
-                chordSynth.triggerAttackRelease(Tone.Frequency(chordMidi + chord[0], "midi").toFrequency(), beatDuration * 1.9, barTime);
-                chordSynth.triggerAttackRelease(Tone.Frequency(chordMidi + chord[1], "midi").toFrequency(), beatDuration * 1.9, barTime);
-                chordSynth.triggerAttackRelease(Tone.Frequency(chordMidi + chord[2], "midi").toFrequency(), beatDuration * 1.9, barTime);
-                chordSynth.triggerAttackRelease(Tone.Frequency(chordMidi + chord[0], "midi").toFrequency(), beatDuration * 1.9, barTime + beatDuration * 2);
-                chordSynth.triggerAttackRelease(Tone.Frequency(chordMidi + chord[1], "midi").toFrequency(), beatDuration * 1.9, barTime + beatDuration * 2);
-                chordSynth.triggerAttackRelease(Tone.Frequency(chordMidi + chord[2], "midi").toFrequency(), beatDuration * 1.9, barTime + beatDuration * 2);
-            }
-
-            var bassNotes = getBassQuarterNotes(chord, rootMidi);
-            if (bassSynth) {
-                for (var b = 0; b < 4; b++) {
-                    bassSynth.triggerAttackRelease(Tone.Frequency(bassNotes[b], "midi").toFrequency(), beatDuration * 0.85, barTime + b * beatDuration);
-                }
-            }
-        }
-
-        for (var p = 0; p < totalBars; p += 2) {
-            var phraseStart = t0 + p * barDuration;
-            var phrase = (p / 2) % 2 === 0 ? phraseA : phraseB;
-            var elapsedEighths = 0;
-            for (var i = 0; i < phrase.length; i++) {
-                var degree = phrase[i].d;
-                var eighths = phrase[i].e;
-                if (degree >= scale.length) degree = scale.length - 1;
-                var melMidi = melodyRoot + scale[degree];
-                var altoDegree = Math.max(0, degree - 2);
-                var altoMidi = altoRoot + scale[altoDegree];
-                var noteStart = phraseStart + elapsedEighths * eighthDuration;
-                var noteDur = eighths * eighthDuration * 0.9;
-                if (melodySynth) melodySynth.triggerAttackRelease(Tone.Frequency(melMidi, "midi").toFrequency(), noteDur, noteStart);
-                if (altoSynth) altoSynth.triggerAttackRelease(Tone.Frequency(altoMidi, "midi").toFrequency(), noteDur, noteStart);
-                elapsedEighths += eighths;
-            }
-        }
-
-        var lastTripSummary = trips.length ? (trips[trips.length - 1].distance != null ? trips[trips.length - 1].distance.toFixed(1) + " km" : "—") : "—";
+        var lastTripSummary = trips && trips.length ? (trips[trips.length - 1].distance != null ? trips[trips.length - 1].distance.toFixed(1) + " km" : "—") : "—";
         var moodLabel = isDark ? "Minor (dark)" : "Major (light)";
         if (exceptionCount > 0) moodLabel = moodLabel + " (" + exceptionCount + " ex)";
-        updateNowPlayingCards(Tone.Transport.bpm.value, keyFromVehicleName(deviceName), moodLabel, lastTripSummary);
+        updateNowPlayingCards(bpm, keyFromVehicleName(deviceName), moodLabel, lastTripSummary);
     }
 
     function scheduleLiveDriving(status) {
@@ -441,7 +393,6 @@
                 lastStatus = status;
                 if (status && getEl("mode-toggle") && getEl("mode-toggle").value === "live") {
                     updateNowPlayingFromStatus(status);
-                    if (audioStarted && transportStarted) scheduleLiveDriving(status);
                     if (status.isDeviceCommunicating === false) {
                         playSafetyMotif();
                     }
@@ -561,10 +512,27 @@
                         Tone.Transport.start();
                         if (modeToggle && modeToggle.value === "live") {
                             pollStatus(api);
+                            var deviceNameLive = "";
+                            for (var i = 0; i < deviceSelect.options.length; i++) {
+                                if (deviceSelect.options[i].value === deviceId) {
+                                    deviceNameLive = deviceSelect.options[i].text;
+                                    break;
+                                }
+                            }
                             fetchStatus(api, deviceId, function (s) {
                                 lastStatus = s;
                                 renderLiveStatus(s);
                                 updateNowPlayingFromStatus(s);
+                                var mood = s && s.isDeviceCommunicating === false ? "dark" : "light";
+                                var rootMidiLive = ROOT_MIDI + (hashString(deviceNameLive) % 12);
+                                if (window.FleetSymphonyMusic && melodySynth && altoSynth && chordSynth && bassSynth) {
+                                    window.FleetSymphonyMusic.scheduleLoop(mood, rootMidiLive, {
+                                        melody: melodySynth,
+                                        alto: altoSynth,
+                                        chord: chordSynth,
+                                        bass: bassSynth
+                                    });
+                                }
                             });
                         } else {
                             var days = playbackRange ? parseInt(playbackRange.value, 10) : 7;
@@ -577,7 +545,7 @@
                                             break;
                                         }
                                     }
-                                    buildPlaybackSong(trips, exceptions, deviceName);
+                                    startClassicalLoop(trips, exceptions, deviceName);
                                     var tc = getEl("timeline-content");
                                     if (tc) {
                                         tc.innerHTML = "";
@@ -597,7 +565,25 @@
                 } else {
                     transportStarted = true;
                     Tone.Transport.start();
-                    if (modeToggle && modeToggle.value === "live") pollStatus(api);
+                    if (modeToggle && modeToggle.value === "live") {
+                        pollStatus(api);
+                        var deviceNameResume = "";
+                        for (var i = 0; i < deviceSelect.options.length; i++) {
+                            if (deviceSelect.options[i].value === deviceId) {
+                                deviceNameResume = deviceSelect.options[i].text;
+                                break;
+                            }
+                        }
+                        var rootMidiResume = ROOT_MIDI + (hashString(deviceNameResume) % 12);
+                        if (window.FleetSymphonyMusic && melodySynth && altoSynth && chordSynth && bassSynth) {
+                            window.FleetSymphonyMusic.scheduleLoop(lastStatus && lastStatus.isDeviceCommunicating === false ? "dark" : "light", rootMidiResume, {
+                                melody: melodySynth,
+                                alto: altoSynth,
+                                chord: chordSynth,
+                                bass: bassSynth
+                            });
+                        }
+                    }
                     if (btnPause) btnPause.disabled = false;
                     if (btnStop) btnStop.disabled = false;
                 }
@@ -612,6 +598,7 @@
 
         if (btnStop) {
             btnStop.addEventListener("click", function () {
+                if (window.FleetSymphonyMusic) window.FleetSymphonyMusic.stopLoop();
                 if (typeof Tone !== "undefined") Tone.Transport.stop();
                 transportStarted = false;
                 stopPolling();
@@ -665,9 +652,9 @@
         var warn = getEl("midi-warning");
         if (!warn) return;
         if (location.protocol !== "https:" && location.hostname !== "localhost") {
-            warn.textContent = "MIDI requires HTTPS. Not available on this page.";
+            warn.textContent = "MIDI requires HTTPS. Not available here. Sound still plays through system audio.";
         } else {
-            warn.textContent = "MIDI requires HTTPS. Enable only if you have a compatible device.";
+            warn.textContent = "Optional: send a copy to an external MIDI device. Sound always uses system audio.";
         }
     }
 
@@ -689,6 +676,7 @@
                 apiRef = api;
             },
             blur: function (api, state) {
+                if (window.FleetSymphonyMusic) window.FleetSymphonyMusic.stopLoop();
                 if (typeof Tone !== "undefined") Tone.Transport.stop();
                 stopPolling();
                 disposeAudio();

@@ -4,8 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Fleet Symphony</title>
-    <!-- Cache bust: bump ?v= on the link and script below when deploying -->
-    <link rel="stylesheet" href="styles.css?v=3">
+    <!-- Cache bust: bump ?v= on link and scripts when deploying -->
+    <link rel="stylesheet" href="styles.css?v=4">
 </head>
 <body>
     <div id="app">
@@ -47,18 +47,19 @@
                     <button type="button" id="btn-stop" class="btn btn-secondary" disabled>Stop</button>
                 </div>
                 <div class="control-group">
-                    <label for="volume-slider">Master volume</label>
+                    <label for="volume-slider">Master volume (system sound)</label>
                     <input type="range" id="volume-slider" min="0" max="100" value="25" aria-label="Master volume">
                     <span id="volume-value" class="volume-value">25%</span>
+                    <p class="audio-note">Sound plays through your device speakers or headphones. No MIDI required.</p>
                 </div>
                 <div class="control-group">
                     <label for="presentation-mode" class="toggle-label">Presentation mode</label>
                     <input type="checkbox" id="presentation-mode" aria-label="Presentation mode">
                 </div>
                 <div class="control-group midi-section" id="midi-section">
-                    <label for="midi-toggle" class="toggle-label">MIDI Out</label>
+                    <label for="midi-toggle" class="toggle-label">MIDI Out (optional)</label>
                     <input type="checkbox" id="midi-toggle" aria-label="Send to MIDI output">
-                    <p class="midi-warning" id="midi-warning">MIDI requires HTTPS. Enable only if you have a compatible device.</p>
+                    <p class="midi-warning" id="midi-warning">Optional: send a copy to an external MIDI device. Sound always uses system audio.</p>
                     <select id="midi-device-select" aria-label="MIDI output device" disabled>
                         <option value="">— No device —</option>
                     </select>
@@ -99,6 +100,7 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
-    <script src="addin.js?v=3"></script>
+    <script src="music.js?v=4"></script>
+    <script src="addin.js?v=4"></script>
 </body>
 </html>

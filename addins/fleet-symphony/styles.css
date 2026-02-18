@@ -113,6 +113,12 @@ body {
     color: var(--text-muted);
 }
 
+.audio-note {
+    margin: 4px 0 0;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
 .btn-group {
     flex-direction: row;
     flex-wrap: wrap;
