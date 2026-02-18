@@ -4,7 +4,7 @@
     "use strict";
 
     var apiRef = null;
-    var INACTIVITY_MS = 5000;
+    var INACTIVITY_MS = 5000; /* 5 seconds before fade starts */
     var FADE_MS = 4000;
     var ACTIVITY_THROTTLE_MS = 250;
     var POWER_DECAY_AFTER_MS = 700;

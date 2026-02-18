@@ -5,7 +5,7 @@ A MyGeotab Custom Page Add-In that shows a **Safety Report** with live device st
 ## Features
 
 - **Live device status**: Device dropdown populated from the Geotab API; selecting a device fetches and displays **DeviceStatusInfo** (Speed, Bearing, DateTime, Location, IsDeviceCommunicating). Refresh button to re-fetch.
-- **Inactivity fade**: After 20 seconds without activity, the report fades to black over 4 seconds with a **countdown ring** (SVG stroke-dasharray/dashoffset).
+- **Inactivity fade**: After 5 seconds without activity, the report fades to black over 4 seconds with a **countdown ring** (SVG stroke-dasharray/dashoffset).
 - **Restore during fade**: Any activity (mouse, click, key, touch, wheel) during the fade cancels blackout and restores the report in 250 ms.
 - **Generator when black**: When fully black, only the **generator** restores: move the mouse around the circular wheel (within the track band) and click to build power to 100%; then the overlay fades out and the report returns.
 - **Presentation Mode**: Toggle (default ON) to enable or disable the inactivity mechanic.
@@ -78,7 +78,7 @@ Use the **exact URL** that serves `index.html` in the Add-In config (see below).
 
 | Constant | Default | Meaning |
 |----------|---------|--------|
-| `INACTIVITY_MS` | 20000 | Inactivity delay (ms) before fade starts (20 s). |
+| `INACTIVITY_MS` | 5000 | Inactivity delay (ms) before fade starts (5 s). |
 | `FADE_MS` | 4000 | Fade duration (ms) from visible to black (4 s). |
 | `ACTIVITY_THROTTLE_MS` | 250 | Mousemove counts as activity at most every 250 ms. |
 | `POWER_DECAY_AFTER_MS` | 700 | Time (ms) without wheel motion before power starts decaying. |
@@ -93,7 +93,7 @@ Restore animation duration is 250 ms (CSS `--transition-fast` and removal of ove
 - Add-In loads in MyGeotab without console errors.
 - Device dropdown is populated from the API.
 - Selecting a device fetches and displays DeviceStatusInfo (Speed, Bearing, DateTime, Location, IsDeviceCommunicating); Refresh re-fetches.
-- After 20 s inactivity, fade starts and the countdown ring animates over 4 s.
+- After 5 s inactivity, fade starts and the countdown ring animates over 4 s.
 - Any activity during fade cancels blackout and restores quickly.
 - When fully black, user must use the wheel (and clicks) to reach 100% power to restore.
 - blur/focus do not leave the Add-In stuck black.
