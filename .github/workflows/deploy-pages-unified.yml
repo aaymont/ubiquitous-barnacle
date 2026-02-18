@@ -28,6 +28,9 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
+          cache-dependency-path: |
+            addins/peggle-kpi-pinball/package-lock.json
+            addins/safety-dashboard/package-lock.json
 
       - name: Build Peggle KPI Pinball
         run: |
