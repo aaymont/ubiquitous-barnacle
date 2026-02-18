@@ -9,6 +9,7 @@ import { generateCsv, downloadCsv } from "./exportCsv";
 import type { ExportState } from "./exportCsv";
 import { buildPegBoard, dropBall, resetBoard, onSkipGame } from "../game/pegBoardBuilder";
 import { isPhysicsFailed } from "../addin/lifecycle";
+import { VERSION_DISPLAY } from "../version";
 
 const TIME_RANGES = [
   { value: "1", label: "1 day" },
@@ -123,6 +124,7 @@ export function buildUI(api: GeotabApi) {
           <button id="skip-game-btn" type="button">Skip Game: Show Full Report</button>
           <button id="reset-board-btn" type="button">Reset Board</button>
         </div>
+        <div class="version-badge" title="Add-in version — update if you don't see your latest deploy">${VERSION_DISPLAY}</div>
       </div>
 
       <div class="split-view">

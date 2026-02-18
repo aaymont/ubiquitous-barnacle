@@ -72,6 +72,16 @@ body {
   background: #2563eb;
 }
 
+.version-badge {
+  margin-left: auto;
+  font-size: 11px;
+  color: #64748b;
+  align-self: center;
+  padding: 4px 8px;
+  background: #0f172a;
+  border-radius: 4px;
+}
+
 #skip-game-btn {
   background: #10b981;
 }
