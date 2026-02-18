@@ -1,11 +1,11 @@
-name: Deploy Peggle KPI Pinball to GitHub Pages
+name: Deploy All Add-Ins to GitHub Pages
 
 on:
   push:
     branches: ["main"]
     paths:
-      - "addins/peggle-kpi-pinball/**"
-      - ".github/workflows/deploy-pages-peggle.yml"
+      - "addins/**"
+      - ".github/workflows/deploy-pages-unified.yml"
 
 permissions:
   contents: read
@@ -19,9 +19,6 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: addins/peggle-kpi-pinball
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,17 +28,22 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
-          cache-dependency-path: addins/peggle-kpi-pinball/package-lock.json
 
-      - name: Install
-        run: npm ci
-
-      - name: Build
-        run: npm run build
+      - name: Build Peggle KPI Pinball
+        run: |
+          cd addins/peggle-kpi-pinball
+          npm ci
+          npm run build
         env:
           VITE_APP_BUILD_ID: ${{ github.sha }}
 
-      - name: Add cache busting to manifest
+      - name: Build Safety Dashboard
+        run: |
+          cd addins/safety-dashboard
+          npm ci
+          npm run build
+
+      - name: Add cache busting to Peggle manifest
         run: |
           MANIFEST="addins/peggle-kpi-pinball/dist/manifest.json"
           if [ -f "$MANIFEST" ]; then
@@ -58,13 +60,16 @@ jobs:
         env:
           MANIFEST: addins/peggle-kpi-pinball/dist/manifest.json
           GITHUB_SHA: ${{ github.sha }}
-        working-directory: ${{ github.workspace }}
 
-      - name: Prepare artifact for addins/peggle-kpi-pinball path
+      - name: Assemble _site artifact
         run: |
-          mkdir -p _site/addins/peggle-kpi-pinball
+          mkdir -p _site/addins/{peggle-kpi-pinball,safety-dashboard,fleet-symphony,safety-report,utilization-by-vehicle}
+
           cp -r addins/peggle-kpi-pinball/dist/* _site/addins/peggle-kpi-pinball/
-        working-directory: ${{ github.workspace }}
+          cp -r addins/safety-dashboard/dist/* _site/addins/safety-dashboard/
+          cp -r addins/fleet-symphony/* _site/addins/fleet-symphony/
+          cp -r addins/safety-report/* _site/addins/safety-report/
+          cp -r addins/utilization-by-vehicle/* _site/addins/utilization-by-vehicle/
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
