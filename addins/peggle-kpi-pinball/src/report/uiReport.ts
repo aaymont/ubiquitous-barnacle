@@ -70,12 +70,17 @@ function pegToCard(pegId: string): string | null {
   const map: Record<string, string> = {
     speeding: "card-speeding",
     variance: "card-speeding",
+    speedExtra: "card-speeding",
     harshAccel: "card-smoothness",
     harshBrake: "card-smoothness",
+    smoothExtra: "card-smoothness",
     idle: "card-idle",
     longStop: "card-idle",
+    idleExtra: "card-idle",
     afterHours: "card-compliance",
+    complianceExtra: "card-compliance",
     deviceFresh: "card-health",
+    healthExtra: "card-health",
   };
   return map[pegId] ?? null;
 }
