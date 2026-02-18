@@ -40,13 +40,12 @@ npm run dev
 
 ## Deployment
 
-The repository includes a workflow (`.github/workflows/deploy-pages-peggle.yml`) that deploys the add-in to GitHub Pages on push to `main` when files under `addins/peggle-kpi-pinball/` change.
+The repository uses a unified workflow (`.github/workflows/deploy-pages-unified.yml`) that builds all add-ins and deploys to GitHub Pages on push to `main` when files under `addins/` change.
 
 - Build with Vite
 - Output to `_site/addins/peggle-kpi-pinball/`
 - Deploy via `actions/deploy-pages`
 
-**Note:** If multiple add-in workflows exist, they may overwrite each other. Consider a unified workflow that builds all add-ins and merges into a single `_site` for multi-add-in deployment.
 
 ## Tuning Guide
 
@@ -90,6 +89,17 @@ If updates don’t appear after deploy, the deploy workflow adds cache busting v
 ```json
 "url": "https://aaymont.github.io/ubiquitous-barnacle/addins/peggle-kpi-pinball/?v=1.0.1"
 ```
+
+### Script could not be loaded: `/src/main.ts` or MIME type `video/mp2t`
+
+This happens when **GitHub Pages serves source files instead of the built output**. The page must serve the built `index.html` (which loads `./assets/index-xxx.js`), not the dev `index.html` (which loads `/src/main.ts`).
+
+**Fix:** Ensure GitHub Pages uses **GitHub Actions** as the source, not "Deploy from a branch":
+
+1. Go to the repo: **Settings → Pages**
+2. Under **Build and deployment → Source**, select **GitHub Actions** (not "Deploy from a branch")
+
+If Pages is set to "Deploy from a branch", it serves the raw repo (including source files). The unified workflow (`.github/workflows/deploy-pages-unified.yml`) builds the add-ins and deploys the correct output; that output is only used when Source is "GitHub Actions".
 
 ### Add-In Load Issues
 
