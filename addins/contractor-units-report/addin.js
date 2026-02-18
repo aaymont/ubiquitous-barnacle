@@ -2,15 +2,13 @@
 (function () {
     "use strict";
 
+    var U = window.CONTRACTOR_REPORT_UTILS;
+    if (!U) throw new Error("reportUtils.js must load before addin.js");
+
     var CONTRACTOR_GROUP_ID = "b27A5";
     var HOME_ZONE_ID = "b1";
     var PREVIEW_ROWS = 200;
     var STOP_THRESHOLD_MS = 10 * 60 * 1000;
-    var BREAK_4H_MS = 4 * 60 * 60 * 1000;
-    var BREAK_8H_MS = 8 * 60 * 60 * 1000;
-    var ALLOWED_BREAK_15 = 15;
-    var ALLOWED_BREAK_30 = 30;
-    var ALLOWED_BREAK_45 = 45;
 
     var apiRef = null;
     var reportRows = [];
@@ -79,156 +77,7 @@
     }
 
     function dateKey(d) {
-        var y = d.getFullYear();
-        var m = (d.getMonth() + 1);
-        var day = d.getDate();
-        return y + "-" + (m < 10 ? "0" : "") + m + "-" + (day < 10 ? "0" : "") + day;
-    }
-
-    function parseISODate(s) {
-        if (!s) return null;
-        var d = new Date(s);
-        return isNaN(d.getTime()) ? null : d;
-    }
-
-    function getTotalSeconds(durationObj) {
-        if (!durationObj || typeof durationObj.totalSeconds !== "number") return 0;
-        return durationObj.totalSeconds;
-    }
-
-    /* Point-in-zone: polygon (ray casting) or circle */
-    function pointInZone(lat, lng, zone) {
-        if (lat == null || lng == null) return false;
-        if (zone.points && zone.points.length >= 3) {
-            return pointInPolygon(lat, lng, zone.points);
-        }
-        if (typeof zone.latitude === "number" && typeof zone.longitude === "number" && typeof zone.radius === "number") {
-            var R = 6371000;
-            var dLat = (zone.latitude - lat) * Math.PI / 180;
-            var dLon = (zone.longitude - lng) * Math.PI / 180;
-            var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                Math.cos(lat * Math.PI / 180) * Math.cos(zone.latitude * Math.PI / 180) *
-                Math.sin(dLon / 2) * Math.sin(dLon / 2);
-            var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-            return (R * c) <= zone.radius;
-        }
-        return false;
-    }
-
-    function pointInPolygon(lat, lng, points) {
-        var n = points.length;
-        var inside = false;
-        var j = n - 1;
-        for (var i = 0; i < n; i++) {
-            var xi = points[i].latitude != null ? points[i].latitude : points[i].x;
-            var yi = points[i].longitude != null ? points[i].longitude : points[i].y;
-            var xj = points[j].latitude != null ? points[j].latitude : points[j].x;
-            var yj = points[j].longitude != null ? points[j].longitude : points[j].y;
-            if (xi == null) xi = points[i].lat;
-            if (yi == null) yi = points[i].lng;
-            if (xj == null) xj = points[j].lat;
-            if (yj == null) yj = points[j].lng;
-            var intersect = ((yi > lng) !== (yj > lng)) &&
-                (lat < (xj - xi) * (lng - yi) / (yj - yi) + xi);
-            if (intersect) inside = !inside;
-            j = i;
-        }
-        return inside;
-    }
-
-    function findZoneAtPoint(lat, lng, zones, excludeZoneId) {
-        for (var z = 0; z < zones.length; z++) {
-            if (zones[z].id === excludeZoneId) continue;
-            if (pointInZone(lat, lng, zones[z])) return zones[z].name || "Zone";
-        }
-        return null;
-    }
-
-    function formatLatLng(lat, lng) {
-        if (lat == null || lng == null) return "";
-        return Number(lat).toFixed(5) + "," + Number(lng).toFixed(5);
-    }
-
-    function formatAddress(addr) {
-        if (!addr) return "";
-        if (typeof addr === "string") return addr;
-        var parts = [];
-        if (addr.street) parts.push(addr.street);
-        if (addr.city) parts.push(addr.city);
-        if (addr.region || addr.state) parts.push(addr.region || addr.state);
-        if (addr.country) parts.push(addr.country);
-        if (addr.postalCode && parts.length > 0) parts.push(addr.postalCode);
-        if (addr.formattedAddress) return addr.formattedAddress;
-        if (addr.displayName) return addr.displayName;
-        if (parts.length > 0) return parts.join(", ");
-        return "";
-    }
-
-    function nearestLogRecordAtOrBefore(logs, dateTimeMs) {
-        if (!logs || logs.length === 0) return null;
-        var best = null;
-        var bestT = -Infinity;
-        for (var i = 0; i < logs.length; i++) {
-            var t = new Date(logs[i].dateTime).getTime();
-            if (t <= dateTimeMs && t > bestT) {
-                bestT = t;
-                best = logs[i];
-            }
-        }
-        return best;
-    }
-
-    function nearestLogRecordAtOrAfter(logs, dateTimeMs) {
-        if (!logs || logs.length === 0) return null;
-        var best = null;
-        var bestT = Infinity;
-        for (var i = 0; i < logs.length; i++) {
-            var t = new Date(logs[i].dateTime).getTime();
-            if (t >= dateTimeMs && t < bestT) {
-                bestT = t;
-                best = logs[i];
-            }
-        }
-        return best;
-    }
-
-    function getPositionAtTime(logs, dateTimeMs) {
-        var before = nearestLogRecordAtOrBefore(logs, dateTimeMs);
-        var after = nearestLogRecordAtOrAfter(logs, dateTimeMs);
-        if (before && after && before === after) return { lat: before.latitude, lng: before.longitude };
-        if (before && after) {
-            var tBefore = new Date(before.dateTime).getTime();
-            var tAfter = new Date(after.dateTime).getTime();
-            return {
-                lat: before.latitude != null ? before.latitude : after.latitude,
-                lng: before.longitude != null ? before.longitude : after.longitude
-            };
-        }
-        if (before) return { lat: before.latitude, lng: before.longitude };
-        if (after) return { lat: after.latitude, lng: after.longitude };
-        return null;
-    }
-
-    function getAllowedBreakMinutes(shiftDurationMs) {
-        var hours = shiftDurationMs / (60 * 60 * 1000);
-        if (hours < 4) return ALLOWED_BREAK_15;
-        if (hours < 8) return ALLOWED_BREAK_30;
-        return ALLOWED_BREAK_45;
-    }
-
-    function formatDurationMinutes(minutes) {
-        if (minutes == null || isNaN(minutes)) return "";
-        var h = Math.floor(minutes / 60);
-        var m = Math.round(minutes % 60);
-        if (h === 0) return m + " min";
-        return h + ":" + (m < 10 ? "0" : "") + m;
-    }
-
-    function formatDurationHHMM(seconds) {
-        if (seconds == null || isNaN(seconds)) return "";
-        var h = Math.floor(seconds / 3600);
-        var m = Math.floor((seconds % 3600) / 60);
-        return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m;
+        return U.dateKey(d);
     }
 
     geotab.addin["contractorUnitsReport"] = function () {
@@ -428,6 +277,7 @@
         var device = devices[deviceIndex];
         var deviceId = device.id;
         var deviceName = device.name || deviceId;
+        var deviceSerialNumber = (device.serialNumber != null && device.serialNumber !== "") ? String(device.serialNumber) : "";
         showProgress("Processing device " + (deviceIndex + 1) + " of " + devices.length + ": " + deviceName + "…");
 
         api.multiCall([
@@ -478,10 +328,10 @@
                 var firstTripStartMs = null;
                 if (dayTrips.length > 0) {
                     firstTripStartMs = new Date(dayTrips[0].start).getTime();
-                    var pos = getPositionAtTime(logs, firstTripStartMs);
+                    var pos = U.getPositionAtTime(logs, firstTripStartMs);
                     if (pos && pos.lat != null && pos.lng != null) {
                         for (var hz = 0; hz < homeZones.length; hz++) {
-                            if (pointInZone(pos.lat, pos.lng, homeZones[hz])) {
+                            if (U.pointInZone(pos.lat, pos.lng, homeZones[hz])) {
                                 startHomeZone = homeZones[hz];
                                 break;
                             }
@@ -496,7 +346,7 @@
                             var lng = logs[li].longitude;
                             if (lat == null || lng == null) continue;
                             for (var hz2 = 0; hz2 < homeZones.length; hz2++) {
-                                if (pointInZone(lat, lng, homeZones[hz2])) {
+                                if (U.pointInZone(lat, lng, homeZones[hz2])) {
                                     startHomeZone = homeZones[hz2];
                                     break;
                                 }
@@ -509,17 +359,18 @@
                 var ignitionSeconds = 0;
                 var idleInZoneSeconds = 0;
                 var idleOutZoneSeconds = 0;
+                /* Idling = ignition on and no movement (Trip.idlingDuration); split in-zone vs out-of-zone by position at trip end vs Start Home Zone */
                 for (var t = 0; t < dayTrips.length; t++) {
                     var trip = dayTrips[t];
-                    var driveSec = getTotalSeconds(trip.drivingDuration);
-                    var idleSec = getTotalSeconds(trip.idlingDuration);
+                    var driveSec = U.getTotalSeconds(trip.drivingDuration);
+                    var idleSec = U.getTotalSeconds(trip.idlingDuration);
                     if (driveSec === 0 && idleSec === 0 && trip.start && trip.stop) {
                         driveSec = (new Date(trip.stop).getTime() - new Date(trip.start).getTime()) / 1000;
                     }
                     ignitionSeconds += driveSec + idleSec;
                     var stopMs = new Date(trip.stop).getTime();
-                    var posEnd = getPositionAtTime(logs, stopMs);
-                    var inZone = startHomeZone && posEnd && pointInZone(posEnd.lat, posEnd.lng, startHomeZone);
+                    var posEnd = U.getPositionAtTime(logs, stopMs);
+                    var inZone = startHomeZone && posEnd && U.pointInZone(posEnd.lat, posEnd.lng, startHomeZone);
                     if (inZone) idleInZoneSeconds += idleSec;
                     else idleOutZoneSeconds += idleSec;
                 }
@@ -532,7 +383,7 @@
                     if (gapMs >= STOP_THRESHOLD_MS) {
                         stops.push({
                             durationMs: gapMs,
-                            position: getPositionAtTime(logs, gapStart)
+                            position: U.getPositionAtTime(logs, gapStart)
                         });
                     }
                 }
@@ -543,8 +394,8 @@
                 for (var sl = 0; sl < stops.length; sl++) {
                     var pos = stops[sl].position;
                     if (!pos || pos.lat == null || pos.lng == null) continue;
-                    if (startHomeZone && pointInZone(pos.lat, pos.lng, startHomeZone)) continue;
-                    var zoneName = findZoneAtPoint(pos.lat, pos.lng, allZones, startHomeZone ? startHomeZone.id : null);
+                    if (startHomeZone && U.pointInZone(pos.lat, pos.lng, startHomeZone)) continue;
+                    var zoneName = U.findZoneAtPoint(pos.lat, pos.lng, allZones, startHomeZone ? startHomeZone.id : null);
                     if (zoneName) {
                         locationParts.push(zoneName);
                     } else {
@@ -557,7 +408,7 @@
                 var shiftStartMs = dayTrips.length ? new Date(dayTrips[0].start).getTime() : null;
                 var shiftEndMs = dayTrips.length ? new Date(dayTrips[dayTrips.length - 1].stop).getTime() : null;
                 var shiftDurationMs = (shiftStartMs != null && shiftEndMs != null) ? (shiftEndMs - shiftStartMs) : 0;
-                var allowedBreakMin = getAllowedBreakMinutes(shiftDurationMs);
+                var allowedBreakMin = U.getAllowedBreakMinutes(shiftDurationMs);
                 var breakStopMinutes = 0;
                 var adjustedStopCount = stopCount;
                 var adjustedStoppedMs = totalStoppedMs;
@@ -584,13 +435,12 @@
                 var stopLocationsStr = [];
                 for (var pi = 0; pi < locationParts.length; pi++) {
                     var part = locationParts[pi];
-                    stopLocationsStr.push(typeof part === "string" ? part : formatLatLng(part.lat, part.lng));
+                    stopLocationsStr.push(typeof part === "string" ? part : U.formatLatLng(part.lat, part.lng));
                 }
                 rowsData.push({
                     Date: dayKey,
                     DeviceName: deviceName,
-                    DeviceId: deviceId,
-                    Group: "Contractor Units",
+                    SerialNumber: deviceSerialNumber,
                     StartHomeZone: startHomeZone ? (startHomeZone.name || "") : "",
                     IgnitionOnTimeSeconds: ignitionSeconds,
                     IdleInZoneSeconds: idleInZoneSeconds,
@@ -628,15 +478,15 @@
                     var ref = coordToRowEntry[ai];
                     var part = rowsData[ref.rowIndex]._locationParts[ref.partIndex];
                     if (part && part.needAddress) {
-                        var addrStr = formatAddress(addresses[ai]);
-                        rowsData[ref.rowIndex]._locationParts[ref.partIndex] = addrStr || formatLatLng(part.lat, part.lng);
+                        var addrStr = U.formatAddress(addresses[ai]);
+                        rowsData[ref.rowIndex]._locationParts[ref.partIndex] = addrStr || U.formatLatLng(part.lat, part.lng);
                     }
                 }
                 for (var ri = 0; ri < rowsData.length; ri++) {
                     var parts = rowsData[ri]._locationParts;
                     var strs = [];
                     for (var p = 0; p < parts.length; p++) {
-                        strs.push(typeof parts[p] === "string" ? parts[p] : formatLatLng(parts[p].lat, parts[p].lng));
+                        strs.push(typeof parts[p] === "string" ? parts[p] : U.formatLatLng(parts[p].lat, parts[p].lng));
                     }
                     rowsData[ri].StopLocations = strs.join("; ");
                 }
@@ -646,7 +496,7 @@
                     var parts = rowsData[ri]._locationParts;
                     var strs = [];
                     for (var p = 0; p < parts.length; p++) {
-                        strs.push(typeof parts[p] === "string" ? parts[p] : formatLatLng(parts[p].lat, parts[p].lng));
+                        strs.push(typeof parts[p] === "string" ? parts[p] : U.formatLatLng(parts[p].lat, parts[p].lng));
                     }
                     rowsData[ri].StopLocations = strs.join("; ");
                 }
@@ -662,8 +512,7 @@
     var COLUMNS = [
         { key: "Date", label: "Date" },
         { key: "DeviceName", label: "Device Name" },
-        { key: "DeviceId", label: "Device Id" },
-        { key: "Group", label: "Group" },
+        { key: "SerialNumber", label: "Geotab Serial Number" },
         { key: "StartHomeZone", label: "Start Home Zone" },
         { key: "IgnitionOnTimeSeconds", label: "Ignition On Time", format: "duration" },
         { key: "IdleInZoneSeconds", label: "Idle In Zone", format: "duration" },
@@ -701,7 +550,7 @@
                 var td = document.createElement("td");
                 var val = row[COLUMNS[c2].key];
                 if (COLUMNS[c2].format === "duration" && typeof val === "number") {
-                    td.textContent = formatDurationHHMM(val);
+                    td.textContent = U.formatDurationHHMM(val);
                 } else if (val !== undefined && val !== null) {
                     td.textContent = val;
                 } else {

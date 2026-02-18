@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "items": [
     {
-      "url": "https://aaymont.github.io/ubiquitous-barnacle/addins/contractor-units-report/?v=1.0.2",
+      "url": "https://aaymont.github.io/ubiquitous-barnacle/addins/contractor-units-report/?v=1.0.3",
       "path": "ActivityLink/",
       "menuName": { "en": "Contractor Units Activity Report" }
     }
