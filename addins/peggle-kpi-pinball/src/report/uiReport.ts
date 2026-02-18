@@ -9,7 +9,20 @@ import { generateCsv, downloadCsv } from "./exportCsv";
 import type { ExportState } from "./exportCsv";
 import { buildPegBoard, dropBall, resetBoard, onSkipGame } from "../game/pegBoardBuilder";
 import { isPhysicsFailed } from "../addin/lifecycle";
+import { isPixiReady } from "../game/pixiStage";
 import { VERSION_DISPLAY } from "../version";
+
+function whenPixiReady(): Promise<void> {
+  if (isPixiReady()) return Promise.resolve();
+  return new Promise((resolve) => {
+    const id = setInterval(() => {
+      if (isPixiReady()) {
+        clearInterval(id);
+        resolve();
+      }
+    }, 50);
+  });
+}
 
 const TIME_RANGES = [
   { value: "1", label: "1 day" },
@@ -225,7 +238,12 @@ function bindControls(api: GeotabApi) {
     if (currentMode === "direct") skipGameAndRevealAll();
   });
 
-  dropBtn?.addEventListener("click", () => dropBall());
+  dropBtn?.addEventListener("click", () => {
+    if (!currentDeviceId || !tripMetrics || !derivedMetrics) {
+      return;
+    }
+    dropBall();
+  });
 
   skipBtn?.addEventListener("click", () => skipGameAndRevealAll());
 
@@ -303,6 +321,7 @@ async function loadData(api: GeotabApi) {
     updateTimestamp();
 
     if (!isPhysicsFailed()) {
+      await whenPixiReady();
       buildPegBoard(currentDeviceId, metrics, derived, status);
       if (currentMode === "explore") dropBall();
       hideLoading();

@@ -25,10 +25,17 @@ export function createLifecycle() {
 
       createMatterWorld();
 
-      createPixiApp().catch((err) => {
-        console.error("Pixi/Physics init failed:", err);
-        physicsInitFailed = true;
-      });
+      createPixiApp()
+        .then(() => {
+          // Start render loop when Pixi is ready (fixes race: focus may run before Pixi completes)
+          if (!physicsInitFailed) {
+            resumeRenderLoop();
+          }
+        })
+        .catch((err) => {
+          console.error("Pixi/Physics init failed:", err);
+          physicsInitFailed = true;
+        });
 
       loadDevices(api);
 
@@ -44,8 +51,7 @@ export function createLifecycle() {
 
     blur(_api: GeotabApi, _state: GeotabAddInState) {
       stopRenderLoop();
-      destroyMatterWorld();
-      // Keep Pixi app alive for when focus is called again
+      // Don't destroy Matter world — keep pegs/ball so board is intact when focus returns
     },
   };
 }
