@@ -16,7 +16,7 @@ function glowPeg(pegBody: Matter.Body): void {
     if (ud?.matterBody === pegBody && ud?.pegId && child instanceof Graphics) {
       child.clear();
       child.circle(0, 0, 12);
-      child.fill(0x00ff88, 1);
+      child.fill({ color: 0x00ff88, alpha: 1 });
       child.stroke({ width: 3, color: 0xffffff });
       child.x = pegBody.position.x;
       child.y = pegBody.position.y;

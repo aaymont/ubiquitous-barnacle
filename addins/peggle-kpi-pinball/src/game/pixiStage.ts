@@ -8,6 +8,11 @@ let app: Application | null = null;
 let containerEl: HTMLDivElement | null = null;
 let running = false;
 let tickerHandle: ((t: { deltaTime: number }) => void) | null = null;
+let pixiReady = false;
+
+export function isPixiReady(): boolean {
+  return pixiReady;
+}
 
 export async function createPixiApp(): Promise<void> {
   if (app) return;
@@ -42,6 +47,7 @@ export async function createPixiApp(): Promise<void> {
     }
   };
   app.ticker.add(tickerHandle);
+  pixiReady = true;
 }
 
 export function getCanvasContainer(): HTMLElement | null {
@@ -54,12 +60,32 @@ export function getApp(): Application | null {
 
 export function resumeRenderLoop(): void {
   running = true;
-  if (app) app.ticker.start();
+  try {
+    if (app) {
+      if (typeof (app as { start?: () => void }).start === "function") {
+        (app as { start: () => void }).start();
+      } else if (app.ticker?.start) {
+        app.ticker.start();
+      }
+    }
+  } catch (err) {
+    console.warn("Peggle: Could not start render loop", err);
+  }
 }
 
 export function stopRenderLoop(): void {
   running = false;
-  if (app) app.ticker.stop();
+  try {
+    if (app) {
+      if (typeof (app as { stop?: () => void }).stop === "function") {
+        (app as { stop: () => void }).stop();
+      } else if (app.ticker?.stop) {
+        app.ticker.stop();
+      }
+    }
+  } catch (err) {
+    console.warn("Peggle: Could not stop render loop", err);
+  }
 }
 
 export function destroyPixiApp(): void {
@@ -75,6 +101,7 @@ export function destroyPixiApp(): void {
     containerEl.parentNode.removeChild(containerEl);
   }
   containerEl = null;
+  pixiReady = false;
 }
 
 export function getStage() {

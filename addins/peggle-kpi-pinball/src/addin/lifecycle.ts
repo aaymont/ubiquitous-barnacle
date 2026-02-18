@@ -1,6 +1,6 @@
 import type { GeotabApi, GeotabAddInState } from "../types/geotab";
 import { buildUI, destroyUI } from "../report/uiReport";
-import { createPixiApp, destroyPixiApp, resumeRenderLoop, stopRenderLoop } from "../game/pixiStage";
+import { createPixiApp, destroyPixiApp, resumeRenderLoop, stopRenderLoop, isPixiReady } from "../game/pixiStage";
 import { createMatterWorld, destroyMatterWorld } from "../game/matterWorld";
 import { loadDevices } from "../report/uiReport";
 
@@ -37,7 +37,7 @@ export function createLifecycle() {
 
     focus(api: GeotabApi, _state: GeotabAddInState) {
       apiRef = api;
-      if (!physicsInitFailed) {
+      if (!physicsInitFailed && isPixiReady()) {
         resumeRenderLoop();
       }
     },

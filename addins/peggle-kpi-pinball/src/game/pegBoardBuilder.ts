@@ -122,7 +122,7 @@ export function buildPegBoard(
 
     const g = new Graphics();
     g.circle(0, 0, PEG_RADIUS);
-    g.fill(def.isPower ? 0xffaa00 : 0x4fc3f7, 1);
+    g.fill({ color: def.isPower ? 0xffaa00 : 0x4fc3f7, alpha: 1 });
     g.stroke({ width: 2, color: 0xffffff });
     g.x = def.x;
     g.y = def.y;
@@ -156,7 +156,7 @@ export function dropBall(): void {
   const ball = addBall(LAUNCH_X, LAUNCH_Y, BALL_RADIUS);
   ballGraphics = new Graphics();
   ballGraphics.circle(0, 0, BALL_RADIUS);
-  ballGraphics.fill(0xffffff, 1);
+  ballGraphics.fill({ color: 0xffffff, alpha: 1 });
   ballGraphics.stroke({ width: 2, color: 0x00bcd4 });
   ballGraphics.x = LAUNCH_X;
   ballGraphics.y = LAUNCH_Y;
