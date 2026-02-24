@@ -4,14 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Zone Mileage Report</title>
-    <link rel="stylesheet" href="styles.css?v=1.0.0">
+    <link rel="stylesheet" href="styles.css?v=1.0.1">
 </head>
 <body>
     <div id="zone-mileage-container">
         <header class="header">
             <h1 class="header-title">
                 Zone Mileage Report
-                <span class="revision" id="app-revision" aria-label="Add-in revision">v1.0.0</span>
+                <span class="revision" id="app-revision" aria-label="Add-in revision">v1.0.1</span>
             </h1>
             <p class="header-subtitle" id="header-subtitle">
                 Zone id: b2. Select a device (or all), timeframe, and calculate.
@@ -42,6 +42,7 @@
             </div>
             <div class="control-group">
                 <button type="button" id="calculate-btn" class="btn btn-primary">Calculate</button>
+                <button type="button" id="export-excel-btn" class="btn" disabled>Export to Excel</button>
             </div>
         </div>
 
@@ -72,10 +73,19 @@
             <p class="results-note" id="results-note">
                 Totals are computed from GPS breadcrumbs over the selected period. Total miles equals inside + outside.
             </p>
+
+            <h3 class="table-title">Mileage by vehicle</h3>
+            <div class="table-wrap">
+                <table class="results-table" id="device-table" aria-label="Mileage by vehicle">
+                    <thead id="device-table-head"></thead>
+                    <tbody id="device-table-body"></tbody>
+                </table>
+            </div>
         </section>
     </div>
 
-    <script src="addin.js?v=1.0.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="addin.js?v=1.0.1"></script>
 </body>
 </html>
 

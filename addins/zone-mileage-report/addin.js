@@ -4,6 +4,9 @@
     var ZONE_ID = "b2";
     var apiRef = null;
     var devices = [];
+    var deviceNameMap = {};
+    var lastSummary = null;
+    var lastDeviceRows = [];
 
     function getEl(id) {
         return document.getElementById(id);
@@ -45,6 +48,13 @@
 
     function setCalculateEnabled(enabled) {
         var btn = getEl("calculate-btn");
+        if (btn) {
+            btn.disabled = !enabled;
+        }
+    }
+
+    function setExportEnabled(enabled) {
+        var btn = getEl("export-excel-btn");
         if (btn) {
             btn.disabled = !enabled;
         }
@@ -190,6 +200,7 @@
         }
         for (var i = 0; i < devices.length; i++) {
             var d = devices[i];
+            deviceNameMap[d.id] = d.name || d.serialNumber || d.id;
             var opt = document.createElement("option");
             opt.value = d.id;
             opt.textContent = d.name || d.serialNumber || d.id;
@@ -203,6 +214,7 @@
         }
         hideMessage();
         setCalculateEnabled(false);
+        setExportEnabled(false);
         showProgress("Preparing…");
 
         var range = getDateRangeFromUI();
@@ -244,21 +256,36 @@
                 setCalculateEnabled(true);
                 showMessage("No GPS logs found for the selected range and vehicle scope.", false);
                 setResults(0, 0, 0, "No data for the selected period.");
+                lastSummary = null;
+                lastDeviceRows = [];
+                renderDeviceTable([]);
                 return;
             }
 
             var zone = zones[0];
             showProgress("Computing distances inside and outside zone " + ZONE_ID + "…");
-            var totals = computeTotalsFromLogs(logs, zone);
+            var totals = computeTotalsFromLogs(logs, zone, deviceNameMap);
 
             hideProgress();
             setCalculateEnabled(true);
+            setExportEnabled(true);
+
+            lastSummary = {
+                totalMiles: totals.totalMiles,
+                insideMiles: totals.insideMiles,
+                outsideMiles: totals.outsideMiles,
+                fromDate: fromDate,
+                toDate: toDate,
+                points: logs.length
+            };
+            lastDeviceRows = totals.perDevice || [];
 
             var label = "Computed from " + logs.length + " GPS points between " +
                 fromDate.toISOString().slice(0, 10) + " and " +
                 toDate.toISOString().slice(0, 10) +
                 ". Total miles equals inside + outside.";
             setResults(totals.totalMiles, totals.insideMiles, totals.outsideMiles, label);
+            renderDeviceTable(lastDeviceRows);
         }, function (err) {
             hideProgress();
             setCalculateEnabled(true);
@@ -266,12 +293,13 @@
         });
     }
 
-    function computeTotalsFromLogs(logs, zone) {
+    function computeTotalsFromLogs(logs, zone, nameMap) {
         var totalMeters = 0;
         var insideMeters = 0;
         var outsideMeters = 0;
+        var perDeviceMeters = {};
         if (!logs || logs.length < 2) {
-            return { totalMiles: 0, insideMiles: 0, outsideMiles: 0 };
+            return { totalMiles: 0, insideMiles: 0, outsideMiles: 0, perDevice: [] };
         }
         logs.sort(function (a, b) {
             var ta = new Date(a.dateTime).getTime();
@@ -281,6 +309,11 @@
         for (var i = 1; i < logs.length; i++) {
             var prev = logs[i - 1];
             var curr = logs[i];
+            var prevDevice = prev.device && prev.device.id;
+            var currDevice = curr.device && curr.device.id;
+            if (!prevDevice || !currDevice || prevDevice !== currDevice) {
+                continue;
+            }
             var lat1 = prev.latitude;
             var lon1 = prev.longitude;
             var lat2 = curr.latitude;
@@ -292,24 +325,138 @@
             totalMeters += dist;
             var prevIn = isInsideZone(lat1, lon1, zone);
             var currIn = isInsideZone(lat2, lon2, zone);
+            if (!perDeviceMeters[prevDevice]) {
+                perDeviceMeters[prevDevice] = {
+                    total: 0,
+                    inside: 0,
+                    outside: 0
+                };
+            }
+            var devTotals = perDeviceMeters[prevDevice];
             if (prevIn && currIn) {
                 insideMeters += dist;
+                devTotals.inside += dist;
+                devTotals.total += dist;
             } else if (!prevIn && !currIn) {
                 outsideMeters += dist;
+                devTotals.outside += dist;
+                devTotals.total += dist;
             } else {
                 insideMeters += dist / 2;
                 outsideMeters += dist / 2;
+                devTotals.inside += dist / 2;
+                devTotals.outside += dist / 2;
+                devTotals.total += dist;
             }
         }
         var metersPerMile = 1609.34;
         var insideMiles = insideMeters / metersPerMile;
         var outsideMiles = outsideMeters / metersPerMile;
         var totalMiles = insideMiles + outsideMiles;
+        var perDeviceRows = [];
+        for (var id in perDeviceMeters) {
+            if (!perDeviceMeters.hasOwnProperty(id)) {
+                continue;
+            }
+            var m = perDeviceMeters[id];
+            perDeviceRows.push({
+                deviceId: id,
+                deviceName: (nameMap && nameMap[id]) ? nameMap[id] : id,
+                totalMiles: m.total / metersPerMile,
+                insideMiles: m.inside / metersPerMile,
+                outsideMiles: m.outside / metersPerMile
+            });
+        }
+        perDeviceRows.sort(function (a, b) {
+            if (a.deviceName < b.deviceName) return -1;
+            if (a.deviceName > b.deviceName) return 1;
+            return 0;
+        });
         return {
             totalMiles: totalMiles,
             insideMiles: insideMiles,
-            outsideMiles: outsideMiles
+            outsideMiles: outsideMiles,
+            perDevice: perDeviceRows
         };
+    }
+
+    function renderDeviceTable(perDeviceRows) {
+        var thead = getEl("device-table-head");
+        var tbody = getEl("device-table-body");
+        if (!thead || !tbody) {
+            return;
+        }
+        thead.innerHTML = "";
+        tbody.innerHTML = "";
+        if (!perDeviceRows || !perDeviceRows.length) {
+            return;
+        }
+        var headerRow = document.createElement("tr");
+        var headers = ["Vehicle", "Total miles", "Miles inside zone b2", "Miles outside zone b2"];
+        for (var i = 0; i < headers.length; i++) {
+            var th = document.createElement("th");
+            th.scope = "col";
+            th.textContent = headers[i];
+            headerRow.appendChild(th);
+        }
+        thead.appendChild(headerRow);
+        for (var r = 0; r < perDeviceRows.length; r++) {
+            var row = perDeviceRows[r];
+            var tr = document.createElement("tr");
+            var cols = [
+                row.deviceName,
+                row.totalMiles,
+                row.insideMiles,
+                row.outsideMiles
+            ];
+            for (var c = 0; c < cols.length; c++) {
+                var td = document.createElement("td");
+                if (c === 0) {
+                    td.textContent = cols[c];
+                } else {
+                    td.textContent = typeof cols[c] === "number" ? cols[c].toFixed(1) : "";
+                }
+                tr.appendChild(td);
+            }
+            tbody.appendChild(tr);
+        }
+    }
+
+    function onExportExcel() {
+        if (typeof XLSX === "undefined") {
+            showMessage("Excel library not loaded. Refresh the page.", true);
+            return;
+        }
+        if (!lastDeviceRows || !lastDeviceRows.length || !lastSummary) {
+            showMessage("No data to export. Calculate results first.", false);
+            return;
+        }
+        var data = [];
+        data.push(["Vehicle", "Total miles", "Miles inside zone b2", "Miles outside zone b2"]);
+        for (var i = 0; i < lastDeviceRows.length; i++) {
+            var r = lastDeviceRows[i];
+            data.push([
+                r.deviceName,
+                Number(r.totalMiles.toFixed(1)),
+                Number(r.insideMiles.toFixed(1)),
+                Number(r.outsideMiles.toFixed(1))
+            ]);
+        }
+        var ws = XLSX.utils.aoa_to_sheet(data);
+        var colWidths = [
+            { wch: 24 },
+            { wch: 14 },
+            { wch: 22 },
+            { wch: 22 }
+        ];
+        ws["!cols"] = colWidths;
+        var wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Zone mileage");
+        var fromStr = lastSummary.fromDate ? lastSummary.fromDate.toISOString().slice(0, 10).replace(/-/g, "") : "";
+        var toStr = lastSummary.toDate ? lastSummary.toDate.toISOString().slice(0, 10).replace(/-/g, "") : "";
+        var filename = "Zone_Mileage_b2_" + fromStr + "-" + toStr + ".xlsx";
+        XLSX.writeFile(wb, filename);
+        hideMessage();
     }
 
     geotab.addin["zoneMileageReport"] = function () {
@@ -334,6 +481,13 @@
                 if (btn) {
                     btn.onclick = function () {
                         onCalculate(api);
+                    };
+                }
+
+                var exportBtn = getEl("export-excel-btn");
+                if (exportBtn) {
+                    exportBtn.onclick = function () {
+                        onExportExcel();
                     };
                 }
 
