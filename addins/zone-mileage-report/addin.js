@@ -238,13 +238,29 @@
             search.deviceSearch = { id: selectedDeviceId };
         }
 
-        showProgress("Loading zone and GPS logs…");
+        showProgress("Loading zone, GPS logs, and diagnostics…");
         api.multiCall([
             ["Get", { typeName: "Zone", search: { id: ZONE_ID } }],
-            ["Get", { typeName: "LogRecord", search: search }]
+            ["Get", { typeName: "LogRecord", search: search }],
+            ["Get", {
+                typeName: "StatusData",
+                search: {
+                    diagnosticSearch: { id: "DiagnosticOdometerId" },
+                    latestOnly: true
+                }
+            }],
+            ["Get", {
+                typeName: "StatusData",
+                search: {
+                    diagnosticSearch: { id: "DiagnosticEngineHoursId" },
+                    latestOnly: true
+                }
+            }]
         ], function (results) {
             var zones = results && results[0] ? results[0] : [];
             var logs = results && results[1] ? results[1] : [];
+            var odoStatus = results && results[2] ? results[2] : [];
+            var engStatus = results && results[3] ? results[3] : [];
             if (!zones || zones.length === 0) {
                 hideProgress();
                 setCalculateEnabled(true);
@@ -264,7 +280,22 @@
 
             var zone = zones[0];
             showProgress("Computing distances inside and outside zone " + ZONE_ID + "…");
-            var totals = computeTotalsFromLogs(logs, zone, deviceNameMap);
+            var odoMap = {};
+            var engMap = {};
+            var i;
+            for (i = 0; i < odoStatus.length; i++) {
+                var o = odoStatus[i];
+                if (o && o.device && o.device.id && typeof o.data === "number") {
+                    odoMap[o.device.id] = o.data / 1609.34;
+                }
+            }
+            for (i = 0; i < engStatus.length; i++) {
+                var e = engStatus[i];
+                if (e && e.device && e.device.id && typeof e.data === "number") {
+                    engMap[e.device.id] = e.data / 3600;
+                }
+            }
+            var totals = computeTotalsFromLogs(logs, zone, deviceNameMap, odoMap, engMap);
 
             hideProgress();
             setCalculateEnabled(true);
@@ -293,7 +324,7 @@
         });
     }
 
-    function computeTotalsFromLogs(logs, zone, nameMap) {
+    function computeTotalsFromLogs(logs, zone, nameMap, odoMap, engMap) {
         var totalMeters = 0;
         var insideMeters = 0;
         var outsideMeters = 0;
@@ -359,12 +390,16 @@
                 continue;
             }
             var m = perDeviceMeters[id];
+            var odoMiles = odoMap && typeof odoMap[id] === "number" ? odoMap[id] : null;
+            var engHours = engMap && typeof engMap[id] === "number" ? engMap[id] : null;
             perDeviceRows.push({
                 deviceId: id,
                 deviceName: (nameMap && nameMap[id]) ? nameMap[id] : id,
                 totalMiles: m.total / metersPerMile,
                 insideMiles: m.inside / metersPerMile,
-                outsideMiles: m.outside / metersPerMile
+                outsideMiles: m.outside / metersPerMile,
+                odometerMiles: odoMiles,
+                engineHours: engHours
             });
         }
         perDeviceRows.sort(function (a, b) {
@@ -392,7 +427,14 @@
             return;
         }
         var headerRow = document.createElement("tr");
-        var headers = ["Vehicle", "Total miles", "Miles inside zone b2", "Miles outside zone b2"];
+        var headers = [
+            "Vehicle",
+            "Total miles",
+            "Miles inside zone b2",
+            "Miles outside zone b2",
+            "Odometer at period end (mi)",
+            "Engine hours at period end"
+        ];
         for (var i = 0; i < headers.length; i++) {
             var th = document.createElement("th");
             th.scope = "col";
@@ -407,14 +449,18 @@
                 row.deviceName,
                 row.totalMiles,
                 row.insideMiles,
-                row.outsideMiles
+                row.outsideMiles,
+                row.odometerMiles,
+                row.engineHours
             ];
             for (var c = 0; c < cols.length; c++) {
                 var td = document.createElement("td");
                 if (c === 0) {
                     td.textContent = cols[c];
-                } else {
+                } else if (c >= 1 && c <= 4) {
                     td.textContent = typeof cols[c] === "number" ? cols[c].toFixed(1) : "";
+                } else {
+                    td.textContent = typeof cols[c] === "number" ? cols[c].toFixed(2) : "";
                 }
                 tr.appendChild(td);
             }
@@ -432,14 +478,23 @@
             return;
         }
         var data = [];
-        data.push(["Vehicle", "Total miles", "Miles inside zone b2", "Miles outside zone b2"]);
+        data.push([
+            "Vehicle",
+            "Total miles",
+            "Miles inside zone b2",
+            "Miles outside zone b2",
+            "Odometer at period end (mi)",
+            "Engine hours at period end"
+        ]);
         for (var i = 0; i < lastDeviceRows.length; i++) {
             var r = lastDeviceRows[i];
             data.push([
                 r.deviceName,
                 Number(r.totalMiles.toFixed(1)),
                 Number(r.insideMiles.toFixed(1)),
-                Number(r.outsideMiles.toFixed(1))
+                Number(r.outsideMiles.toFixed(1)),
+                r.odometerMiles != null ? Number(r.odometerMiles.toFixed(1)) : "",
+                r.engineHours != null ? Number(r.engineHours.toFixed(2)) : ""
             ]);
         }
         var ws = XLSX.utils.aoa_to_sheet(data);
@@ -447,7 +502,9 @@
             { wch: 24 },
             { wch: 14 },
             { wch: 22 },
-            { wch: 22 }
+            { wch: 22 },
+            { wch: 26 },
+            { wch: 24 }
         ];
         ws["!cols"] = colWidths;
         var wb = XLSX.utils.book_new();
