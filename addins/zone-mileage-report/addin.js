@@ -263,11 +263,11 @@
                 return;
             }
 
-            function runWithTripsAndLogs(allTrips, allLogs) {
-                if (!allTrips || !allTrips.length) {
+            function runWithTripsAndLogs(allTrips, allLogs, reportDevices) {
+                if (!reportDevices || !reportDevices.length) {
                     hideProgress();
                     setCalculateEnabled(true);
-                    showMessage("No trips found for the selected range and vehicle scope.", false);
+                    showMessage("No vehicles in scope.", false);
                     setResults(0, 0, 0, "No data for the selected period.");
                     lastSummary = null;
                     lastDeviceRows = [];
@@ -303,7 +303,7 @@
                 for (var id in odoMap) { if (odoMap.hasOwnProperty(id)) odoValues[id] = odoMap[id].miles; }
                 var engValues = {};
                 for (var id in engMap) { if (engMap.hasOwnProperty(id)) engValues[id] = engMap[id].hours; }
-                var totals = computeTotalsFromTrips(allTrips, allLogs || [], zone, deviceNameMap, odoValues, engValues);
+                var totals = computeTotalsFromTrips(allTrips, allLogs || [], zone, deviceNameMap, odoValues, engValues, reportDevices);
                 hideProgress();
                 setCalculateEnabled(true);
                 setExportEnabled(true);
@@ -344,7 +344,14 @@
                 ], function (results) {
                     var trips = (results && results[0]) ? results[0] : [];
                     var logs = (results && results[1]) ? results[1] : [];
-                    runWithTripsAndLogs(trips, logs);
+                    var reportDevices = [];
+                    for (var d = 0; d < devices.length; d++) {
+                        if (devices[d].id === selectedDeviceId) {
+                            reportDevices.push(devices[d]);
+                            break;
+                        }
+                    }
+                    runWithTripsAndLogs(trips, logs, reportDevices);
                 }, function (err) {
                     hideProgress();
                     setCalculateEnabled(true);
@@ -358,7 +365,7 @@
 
                 function fetchNextVehicle() {
                     if (deviceIndex >= devices.length) {
-                        runWithTripsAndLogs(allTrips, allLogs);
+                        runWithTripsAndLogs(allTrips, allLogs, devices);
                         return;
                     }
                     var device = devices[deviceIndex];
@@ -438,14 +445,11 @@
         return inZoneMeters / totalMeters;
     }
 
-    function computeTotalsFromTrips(trips, logs, zone, nameMap, odoMap, engMap) {
+    function computeTotalsFromTrips(trips, logs, zone, nameMap, odoMap, engMap, reportDevices) {
         var totalKm = 0;
         var inZoneKm = 0;
         var outZoneKm = 0;
         var perDeviceKm = {};
-        if (!trips || !trips.length) {
-            return { totalMiles: 0, insideMiles: 0, outsideMiles: 0, perDevice: [] };
-        }
         for (var t = 0; t < trips.length; t++) {
             var trip = trips[t];
             var deviceId = trip.device && trip.device.id;
@@ -480,20 +484,52 @@
         var insideMiles = inZoneKm * KM_TO_MILES;
         var outsideMiles = outZoneKm * KM_TO_MILES;
         var perDeviceRows = [];
-        for (var id in perDeviceKm) {
-            if (!perDeviceKm.hasOwnProperty(id)) continue;
+        var devicesToShow = reportDevices && reportDevices.length ? reportDevices : [];
+        for (var di = 0; di < devicesToShow.length; di++) {
+            var dev = devicesToShow[di];
+            var id = dev && dev.id;
+            if (!id) continue;
             var m = perDeviceKm[id];
             var odoMiles = odoMap && typeof odoMap[id] === "number" ? odoMap[id] : null;
             var engHours = engMap && typeof engMap[id] === "number" ? engMap[id] : null;
-            perDeviceRows.push({
-                deviceId: id,
-                deviceName: (nameMap && nameMap[id]) ? nameMap[id] : id,
-                totalMiles: m.total * KM_TO_MILES,
-                insideMiles: m.inside * KM_TO_MILES,
-                outsideMiles: m.outside * KM_TO_MILES,
-                odometerMiles: odoMiles,
-                engineHours: engHours
-            });
+            if (m) {
+                perDeviceRows.push({
+                    deviceId: id,
+                    deviceName: (nameMap && nameMap[id]) ? nameMap[id] : id,
+                    totalMiles: m.total * KM_TO_MILES,
+                    insideMiles: m.inside * KM_TO_MILES,
+                    outsideMiles: m.outside * KM_TO_MILES,
+                    odometerMiles: odoMiles,
+                    engineHours: engHours
+                });
+            } else {
+                perDeviceRows.push({
+                    deviceId: id,
+                    deviceName: (nameMap && nameMap[id]) ? nameMap[id] : (dev.name || dev.serialNumber || id),
+                    totalMiles: 0,
+                    insideMiles: 0,
+                    outsideMiles: 0,
+                    odometerMiles: odoMiles,
+                    engineHours: engHours
+                });
+            }
+        }
+        if (!reportDevices || !reportDevices.length) {
+            for (var pid in perDeviceKm) {
+                if (!perDeviceKm.hasOwnProperty(pid)) continue;
+                var pm = perDeviceKm[pid];
+                var pOdo = odoMap && typeof odoMap[pid] === "number" ? odoMap[pid] : null;
+                var pEng = engMap && typeof engMap[pid] === "number" ? engMap[pid] : null;
+                perDeviceRows.push({
+                    deviceId: pid,
+                    deviceName: (nameMap && nameMap[pid]) ? nameMap[pid] : pid,
+                    totalMiles: pm.total * KM_TO_MILES,
+                    insideMiles: pm.inside * KM_TO_MILES,
+                    outsideMiles: pm.outside * KM_TO_MILES,
+                    odometerMiles: pOdo,
+                    engineHours: pEng
+                });
+            }
         }
         perDeviceRows.sort(function (a, b) {
             if (a.deviceName < b.deviceName) return -1;
