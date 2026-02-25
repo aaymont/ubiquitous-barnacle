@@ -238,6 +238,9 @@
             search.deviceSearch = { id: selectedDeviceId };
         }
 
+        var fromStr = toIsoDateTime(fromDate);
+        var toStr = toIsoDateTime(toDate);
+
         showProgress("Loading zone, GPS logs, and diagnostics…");
         api.multiCall([
             ["Get", { typeName: "Zone", search: { id: ZONE_ID } }],
@@ -246,14 +249,16 @@
                 typeName: "StatusData",
                 search: {
                     diagnosticSearch: { id: "DiagnosticOdometerId" },
-                    latestOnly: true
+                    fromDate: fromStr,
+                    toDate: toStr
                 }
             }],
             ["Get", {
                 typeName: "StatusData",
                 search: {
                     diagnosticSearch: { id: "DiagnosticEngineHoursId" },
-                    latestOnly: true
+                    fromDate: fromStr,
+                    toDate: toStr
                 }
             }]
         ], function (results) {
@@ -280,22 +285,36 @@
 
             var zone = zones[0];
             showProgress("Computing distances inside and outside zone " + ZONE_ID + "…");
+
             var odoMap = {};
             var engMap = {};
-            var i;
+            var i, r, deviceId, dateMs, best;
             for (i = 0; i < odoStatus.length; i++) {
-                var o = odoStatus[i];
-                if (o && o.device && o.device.id && typeof o.data === "number") {
-                    odoMap[o.device.id] = o.data / 1609.34;
+                r = odoStatus[i];
+                if (!r || !r.device || !r.device.id || typeof r.data !== "number") continue;
+                deviceId = r.device.id;
+                dateMs = new Date(r.dateTime).getTime();
+                best = odoMap[deviceId];
+                if (best == null || dateMs > best.dateMs) {
+                    odoMap[deviceId] = { dateMs: dateMs, miles: r.data / 1609.34 };
                 }
             }
             for (i = 0; i < engStatus.length; i++) {
-                var e = engStatus[i];
-                if (e && e.device && e.device.id && typeof e.data === "number") {
-                    engMap[e.device.id] = e.data / 3600;
+                r = engStatus[i];
+                if (!r || !r.device || !r.device.id || typeof r.data !== "number") continue;
+                deviceId = r.device.id;
+                dateMs = new Date(r.dateTime).getTime();
+                best = engMap[deviceId];
+                if (best == null || dateMs > best.dateMs) {
+                    engMap[deviceId] = { dateMs: dateMs, hours: r.data / 3600 };
                 }
             }
-            var totals = computeTotalsFromLogs(logs, zone, deviceNameMap, odoMap, engMap);
+            var odoValues = {};
+            for (var id in odoMap) { if (odoMap.hasOwnProperty(id)) odoValues[id] = odoMap[id].miles; }
+            var engValues = {};
+            for (var id in engMap) { if (engMap.hasOwnProperty(id)) engValues[id] = engMap[id].hours; }
+
+            var totals = computeTotalsFromLogs(logs, zone, deviceNameMap, odoValues, engValues);
 
             hideProgress();
             setCalculateEnabled(true);
@@ -311,10 +330,9 @@
             };
             lastDeviceRows = totals.perDevice || [];
 
-            var label = "Computed from " + logs.length + " GPS points between " +
-                fromDate.toISOString().slice(0, 10) + " and " +
-                toDate.toISOString().slice(0, 10) +
-                ". Total miles equals inside + outside.";
+            var label = "Mileage (total, inside zone, outside zone) is for the entire period " +
+                fromDate.toISOString().slice(0, 10) + " to " + toDate.toISOString().slice(0, 10) +
+                " (" + logs.length + " GPS points). Odometer and engine hours are the values at period end.";
             setResults(totals.totalMiles, totals.insideMiles, totals.outsideMiles, label);
             renderDeviceTable(lastDeviceRows);
         }, function (err) {
