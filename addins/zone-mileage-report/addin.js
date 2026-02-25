@@ -340,44 +340,38 @@
                     showMessage("Error loading log records. Check permissions (LogRecord).", true);
                 });
             } else {
-                showProgress("Loading GPS logs per vehicle (to avoid API limit)…");
-                var BATCH_SIZE = 25;
+                showProgress("Loading GPS logs per vehicle (one at a time)…");
                 var allLogs = [];
                 var deviceIndex = 0;
 
-                function fetchNextBatch() {
+                function fetchNextVehicle() {
                     if (deviceIndex >= devices.length) {
                         runWithLogs(allLogs);
                         return;
                     }
-                    var batch = devices.slice(deviceIndex, deviceIndex + BATCH_SIZE);
-                    deviceIndex += batch.length;
-                    showProgress("Loading GPS logs for vehicles " + (deviceIndex - batch.length + 1) + "–" + deviceIndex + " of " + devices.length + "…");
-                    var calls = batch.map(function (d) {
-                        return ["Get", {
-                            typeName: "LogRecord",
-                            search: {
-                                deviceSearch: { id: d.id },
-                                fromDate: fromStr,
-                                toDate: toStr
-                            }
-                        }];
-                    });
-                    api.multiCall(calls, function (results) {
-                        var j;
-                        for (j = 0; j < (results || []).length; j++) {
-                            if (results[j] && results[j].length) {
-                                allLogs.push.apply(allLogs, results[j]);
-                            }
+                    var device = devices[deviceIndex];
+                    var idx = deviceIndex + 1;
+                    showProgress("Loading GPS logs for vehicle " + idx + " of " + devices.length + ": " + (device.name || device.id) + "…");
+                    api.call("Get", {
+                        typeName: "LogRecord",
+                        search: {
+                            deviceSearch: { id: device.id },
+                            fromDate: fromStr,
+                            toDate: toStr
                         }
-                        fetchNextBatch();
+                    }, function (logs) {
+                        if (logs && logs.length) {
+                            allLogs.push.apply(allLogs, logs);
+                        }
+                        deviceIndex++;
+                        fetchNextVehicle();
                     }, function (err) {
                         hideProgress();
                         setCalculateEnabled(true);
-                        showMessage("Error loading log records for some vehicles. Check permissions (LogRecord).", true);
+                        showMessage("Error loading log records for " + (device.name || device.id) + ". Check permissions (LogRecord).", true);
                     });
                 }
-                fetchNextBatch();
+                fetchNextVehicle();
             }
         }, function (err) {
             hideProgress();
