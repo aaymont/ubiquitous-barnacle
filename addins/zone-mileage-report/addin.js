@@ -263,11 +263,11 @@
                 return;
             }
 
-            function runWithLogs(logs) {
-                if (!logs || !logs.length) {
+            function runWithTripsAndLogs(allTrips, allLogs) {
+                if (!allTrips || !allTrips.length) {
                     hideProgress();
                     setCalculateEnabled(true);
-                    showMessage("No GPS logs found for the selected range and vehicle scope.", false);
+                    showMessage("No trips found for the selected range and vehicle scope.", false);
                     setResults(0, 0, 0, "No data for the selected period.");
                     lastSummary = null;
                     lastDeviceRows = [];
@@ -275,7 +275,7 @@
                     return;
                 }
                 var zone = zones[0];
-                showProgress("Computing distances inside and outside zone " + ZONE_ID + "…");
+                showProgress("Computing distances from Trip summary and GPS path…");
                 var odoMap = {};
                 var engMap = {};
                 var i, r, deviceId, dateMs, best;
@@ -303,7 +303,7 @@
                 for (var id in odoMap) { if (odoMap.hasOwnProperty(id)) odoValues[id] = odoMap[id].miles; }
                 var engValues = {};
                 for (var id in engMap) { if (engMap.hasOwnProperty(id)) engValues[id] = engMap[id].hours; }
-                var totals = computeTotalsFromLogs(logs, zone, deviceNameMap, odoValues, engValues);
+                var totals = computeTotalsFromTrips(allTrips, allLogs || [], zone, deviceNameMap, odoValues, engValues);
                 hideProgress();
                 setCalculateEnabled(true);
                 setExportEnabled(true);
@@ -313,62 +313,85 @@
                     outsideMiles: totals.outsideMiles,
                     fromDate: fromDate,
                     toDate: toDate,
-                    points: logs.length
+                    tripCount: allTrips.length
                 };
                 lastDeviceRows = totals.perDevice || [];
-                var label = "Mileage (total, inside zone, outside zone) is for the entire period " +
-                    fromDate.toISOString().slice(0, 10) + " to " + toDate.toISOString().slice(0, 10) +
-                    " (" + logs.length + " GPS points). Odometer and engine hours are the values at period end.";
+                var label = "Total miles from Trip summary. In-zone vs out-of-zone split from GPS path. Odometer and engine hours at period end. " +
+                    fromDate.toISOString().slice(0, 10) + " to " + toDate.toISOString().slice(0, 10) + " (" + allTrips.length + " trips).";
                 setResults(totals.totalMiles, totals.insideMiles, totals.outsideMiles, label);
                 renderDeviceTable(lastDeviceRows);
             }
 
             if (selectedDeviceId && selectedDeviceId !== "all") {
-                showProgress("Loading GPS logs for selected vehicle…");
-                api.call("Get", {
-                    typeName: "LogRecord",
-                    search: {
-                        deviceSearch: { id: selectedDeviceId },
-                        fromDate: fromStr,
-                        toDate: toStr
-                    }
-                }, function (logs) {
-                    runWithLogs(logs || []);
+                showProgress("Loading trips and GPS logs for selected vehicle…");
+                api.multiCall([
+                    ["Get", {
+                        typeName: "Trip",
+                        search: {
+                            deviceSearch: { id: selectedDeviceId },
+                            fromDate: fromStr,
+                            toDate: toStr
+                        }
+                    }],
+                    ["Get", {
+                        typeName: "LogRecord",
+                        search: {
+                            deviceSearch: { id: selectedDeviceId },
+                            fromDate: fromStr,
+                            toDate: toStr
+                        }
+                    }]
+                ], function (results) {
+                    var trips = (results && results[0]) ? results[0] : [];
+                    var logs = (results && results[1]) ? results[1] : [];
+                    runWithTripsAndLogs(trips, logs);
                 }, function (err) {
                     hideProgress();
                     setCalculateEnabled(true);
-                    showMessage("Error loading log records. Check permissions (LogRecord).", true);
+                    showMessage("Error loading trips or log records. Check permissions (Trip, LogRecord).", true);
                 });
             } else {
-                showProgress("Loading GPS logs per vehicle (one at a time)…");
+                showProgress("Loading trips and GPS logs per vehicle (one at a time)…");
+                var allTrips = [];
                 var allLogs = [];
                 var deviceIndex = 0;
 
                 function fetchNextVehicle() {
                     if (deviceIndex >= devices.length) {
-                        runWithLogs(allLogs);
+                        runWithTripsAndLogs(allTrips, allLogs);
                         return;
                     }
                     var device = devices[deviceIndex];
                     var idx = deviceIndex + 1;
-                    showProgress("Loading GPS logs for vehicle " + idx + " of " + devices.length + ": " + (device.name || device.id) + "…");
-                    api.call("Get", {
-                        typeName: "LogRecord",
-                        search: {
-                            deviceSearch: { id: device.id },
-                            fromDate: fromStr,
-                            toDate: toStr
-                        }
-                    }, function (logs) {
-                        if (logs && logs.length) {
-                            allLogs.push.apply(allLogs, logs);
-                        }
+                    showProgress("Loading trips and GPS for vehicle " + idx + " of " + devices.length + ": " + (device.name || device.id) + "…");
+                    api.multiCall([
+                        ["Get", {
+                            typeName: "Trip",
+                            search: {
+                                deviceSearch: { id: device.id },
+                                fromDate: fromStr,
+                                toDate: toStr
+                            }
+                        }],
+                        ["Get", {
+                            typeName: "LogRecord",
+                            search: {
+                                deviceSearch: { id: device.id },
+                                fromDate: fromStr,
+                                toDate: toStr
+                            }
+                        }]
+                    ], function (results) {
+                        var trips = (results && results[0]) ? results[0] : [];
+                        var logs = (results && results[1]) ? results[1] : [];
+                        if (trips && trips.length) allTrips.push.apply(allTrips, trips);
+                        if (logs && logs.length) allLogs.push.apply(allLogs, logs);
                         deviceIndex++;
                         fetchNextVehicle();
                     }, function (err) {
                         hideProgress();
                         setCalculateEnabled(true);
-                        showMessage("Error loading log records for " + (device.name || device.id) + ". Check permissions (LogRecord).", true);
+                        showMessage("Error loading trips or log records for " + (device.name || device.id) + ". Check permissions (Trip, LogRecord).", true);
                     });
                 }
                 fetchNextVehicle();
@@ -380,80 +403,94 @@
         });
     }
 
-    function computeTotalsFromLogs(logs, zone, nameMap, odoMap, engMap) {
+    var KM_TO_MILES = 0.621371;
+
+    function computeInZoneRatioFromLogs(logs, zone) {
+        var inZoneMeters = 0;
         var totalMeters = 0;
-        var insideMeters = 0;
-        var outsideMeters = 0;
-        var perDeviceMeters = {};
         if (!logs || logs.length < 2) {
-            return { totalMiles: 0, insideMiles: 0, outsideMiles: 0, perDevice: [] };
+            return 0.5;
         }
         logs.sort(function (a, b) {
-            var ta = new Date(a.dateTime).getTime();
-            var tb = new Date(b.dateTime).getTime();
-            return ta - tb;
+            return new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime();
         });
         for (var i = 1; i < logs.length; i++) {
             var prev = logs[i - 1];
             var curr = logs[i];
-            var prevDevice = prev.device && prev.device.id;
-            var currDevice = curr.device && curr.device.id;
-            if (!prevDevice || !currDevice || prevDevice !== currDevice) {
-                continue;
-            }
             var lat1 = prev.latitude;
             var lon1 = prev.longitude;
             var lat2 = curr.latitude;
             var lon2 = curr.longitude;
             var dist = haversineMeters(lat1, lon1, lat2, lon2);
-            if (!dist || dist <= 0) {
-                continue;
-            }
+            if (!dist || dist <= 0) continue;
             totalMeters += dist;
             var prevIn = isInsideZone(lat1, lon1, zone);
             var currIn = isInsideZone(lat2, lon2, zone);
-            if (!perDeviceMeters[prevDevice]) {
-                perDeviceMeters[prevDevice] = {
-                    total: 0,
-                    inside: 0,
-                    outside: 0
-                };
-            }
-            var devTotals = perDeviceMeters[prevDevice];
             if (prevIn && currIn) {
-                insideMeters += dist;
-                devTotals.inside += dist;
-                devTotals.total += dist;
+                inZoneMeters += dist;
             } else if (!prevIn && !currIn) {
-                outsideMeters += dist;
-                devTotals.outside += dist;
-                devTotals.total += dist;
+                /* out of zone */
             } else {
-                insideMeters += dist / 2;
-                outsideMeters += dist / 2;
-                devTotals.inside += dist / 2;
-                devTotals.outside += dist / 2;
-                devTotals.total += dist;
+                inZoneMeters += dist / 2;
             }
         }
-        var metersPerMile = 1609.34;
-        var insideMiles = insideMeters / metersPerMile;
-        var outsideMiles = outsideMeters / metersPerMile;
-        var totalMiles = insideMiles + outsideMiles;
-        var perDeviceRows = [];
-        for (var id in perDeviceMeters) {
-            if (!perDeviceMeters.hasOwnProperty(id)) {
-                continue;
+        if (totalMeters <= 0) return 0.5;
+        return inZoneMeters / totalMeters;
+    }
+
+    function computeTotalsFromTrips(trips, logs, zone, nameMap, odoMap, engMap) {
+        var totalKm = 0;
+        var inZoneKm = 0;
+        var outZoneKm = 0;
+        var perDeviceKm = {};
+        if (!trips || !trips.length) {
+            return { totalMiles: 0, insideMiles: 0, outsideMiles: 0, perDevice: [] };
+        }
+        for (var t = 0; t < trips.length; t++) {
+            var trip = trips[t];
+            var deviceId = trip.device && trip.device.id;
+            if (!deviceId) continue;
+            var tripKm = (typeof trip.distance === "number" ? trip.distance : 0);
+            if (!tripKm) continue;
+            var tripStartMs = new Date(trip.start).getTime();
+            var tripStopMs = new Date(trip.stop || trip.start).getTime();
+            var tripLogs = [];
+            for (var l = 0; l < logs.length; l++) {
+                var log = logs[l];
+                if (!log || !log.device || log.device.id !== deviceId) continue;
+                var logMs = new Date(log.dateTime).getTime();
+                if (logMs >= tripStartMs && logMs <= tripStopMs) {
+                    tripLogs.push(log);
+                }
             }
-            var m = perDeviceMeters[id];
+            var ratio = computeInZoneRatioFromLogs(tripLogs, zone);
+            var inZoneTripKm = tripKm * ratio;
+            var outZoneTripKm = tripKm * (1 - ratio);
+            totalKm += tripKm;
+            inZoneKm += inZoneTripKm;
+            outZoneKm += outZoneTripKm;
+            if (!perDeviceKm[deviceId]) {
+                perDeviceKm[deviceId] = { total: 0, inside: 0, outside: 0 };
+            }
+            perDeviceKm[deviceId].total += tripKm;
+            perDeviceKm[deviceId].inside += inZoneTripKm;
+            perDeviceKm[deviceId].outside += outZoneTripKm;
+        }
+        var totalMiles = totalKm * KM_TO_MILES;
+        var insideMiles = inZoneKm * KM_TO_MILES;
+        var outsideMiles = outZoneKm * KM_TO_MILES;
+        var perDeviceRows = [];
+        for (var id in perDeviceKm) {
+            if (!perDeviceKm.hasOwnProperty(id)) continue;
+            var m = perDeviceKm[id];
             var odoMiles = odoMap && typeof odoMap[id] === "number" ? odoMap[id] : null;
             var engHours = engMap && typeof engMap[id] === "number" ? engMap[id] : null;
             perDeviceRows.push({
                 deviceId: id,
                 deviceName: (nameMap && nameMap[id]) ? nameMap[id] : id,
-                totalMiles: m.total / metersPerMile,
-                insideMiles: m.inside / metersPerMile,
-                outsideMiles: m.outside / metersPerMile,
+                totalMiles: m.total * KM_TO_MILES,
+                insideMiles: m.inside * KM_TO_MILES,
+                outsideMiles: m.outside * KM_TO_MILES,
                 odometerMiles: odoMiles,
                 engineHours: engHours
             });
