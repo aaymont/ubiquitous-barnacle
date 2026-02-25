@@ -230,21 +230,12 @@
         var deviceSelect = getEl("device-select");
         var selectedDeviceId = deviceSelect ? deviceSelect.value : "all";
 
-        var search = {
-            fromDate: toIsoDateTime(fromDate),
-            toDate: toIsoDateTime(toDate)
-        };
-        if (selectedDeviceId && selectedDeviceId !== "all") {
-            search.deviceSearch = { id: selectedDeviceId };
-        }
-
         var fromStr = toIsoDateTime(fromDate);
         var toStr = toIsoDateTime(toDate);
 
-        showProgress("Loading zone, GPS logs, and diagnostics…");
+        showProgress("Loading zone and diagnostics…");
         api.multiCall([
             ["Get", { typeName: "Zone", search: { id: ZONE_ID } }],
-            ["Get", { typeName: "LogRecord", search: search }],
             ["Get", {
                 typeName: "StatusData",
                 search: {
@@ -261,84 +252,137 @@
                     toDate: toStr
                 }
             }]
-        ], function (results) {
-            var zones = results && results[0] ? results[0] : [];
-            var logs = results && results[1] ? results[1] : [];
-            var odoStatus = results && results[2] ? results[2] : [];
-            var engStatus = results && results[3] ? results[3] : [];
+        ], function (zoneResults) {
+            var zones = zoneResults && zoneResults[0] ? zoneResults[0] : [];
+            var odoStatus = zoneResults && zoneResults[1] ? zoneResults[1] : [];
+            var engStatus = zoneResults && zoneResults[2] ? zoneResults[2] : [];
             if (!zones || zones.length === 0) {
                 hideProgress();
                 setCalculateEnabled(true);
                 showMessage("Zone with id " + ZONE_ID + " not found. Check that the zone exists and the user has Zone permissions.", true);
                 return;
             }
-            if (!logs || !logs.length) {
+
+            function runWithLogs(logs) {
+                if (!logs || !logs.length) {
+                    hideProgress();
+                    setCalculateEnabled(true);
+                    showMessage("No GPS logs found for the selected range and vehicle scope.", false);
+                    setResults(0, 0, 0, "No data for the selected period.");
+                    lastSummary = null;
+                    lastDeviceRows = [];
+                    renderDeviceTable([]);
+                    return;
+                }
+                var zone = zones[0];
+                showProgress("Computing distances inside and outside zone " + ZONE_ID + "…");
+                var odoMap = {};
+                var engMap = {};
+                var i, r, deviceId, dateMs, best;
+                for (i = 0; i < odoStatus.length; i++) {
+                    r = odoStatus[i];
+                    if (!r || !r.device || !r.device.id || typeof r.data !== "number") continue;
+                    deviceId = r.device.id;
+                    dateMs = new Date(r.dateTime).getTime();
+                    best = odoMap[deviceId];
+                    if (best == null || dateMs > best.dateMs) {
+                        odoMap[deviceId] = { dateMs: dateMs, miles: r.data / 1609.34 };
+                    }
+                }
+                for (i = 0; i < engStatus.length; i++) {
+                    r = engStatus[i];
+                    if (!r || !r.device || !r.device.id || typeof r.data !== "number") continue;
+                    deviceId = r.device.id;
+                    dateMs = new Date(r.dateTime).getTime();
+                    best = engMap[deviceId];
+                    if (best == null || dateMs > best.dateMs) {
+                        engMap[deviceId] = { dateMs: dateMs, hours: r.data / 3600 };
+                    }
+                }
+                var odoValues = {};
+                for (var id in odoMap) { if (odoMap.hasOwnProperty(id)) odoValues[id] = odoMap[id].miles; }
+                var engValues = {};
+                for (var id in engMap) { if (engMap.hasOwnProperty(id)) engValues[id] = engMap[id].hours; }
+                var totals = computeTotalsFromLogs(logs, zone, deviceNameMap, odoValues, engValues);
                 hideProgress();
                 setCalculateEnabled(true);
-                showMessage("No GPS logs found for the selected range and vehicle scope.", false);
-                setResults(0, 0, 0, "No data for the selected period.");
-                lastSummary = null;
-                lastDeviceRows = [];
-                renderDeviceTable([]);
-                return;
+                setExportEnabled(true);
+                lastSummary = {
+                    totalMiles: totals.totalMiles,
+                    insideMiles: totals.insideMiles,
+                    outsideMiles: totals.outsideMiles,
+                    fromDate: fromDate,
+                    toDate: toDate,
+                    points: logs.length
+                };
+                lastDeviceRows = totals.perDevice || [];
+                var label = "Mileage (total, inside zone, outside zone) is for the entire period " +
+                    fromDate.toISOString().slice(0, 10) + " to " + toDate.toISOString().slice(0, 10) +
+                    " (" + logs.length + " GPS points). Odometer and engine hours are the values at period end.";
+                setResults(totals.totalMiles, totals.insideMiles, totals.outsideMiles, label);
+                renderDeviceTable(lastDeviceRows);
             }
 
-            var zone = zones[0];
-            showProgress("Computing distances inside and outside zone " + ZONE_ID + "…");
+            if (selectedDeviceId && selectedDeviceId !== "all") {
+                showProgress("Loading GPS logs for selected vehicle…");
+                api.call("Get", {
+                    typeName: "LogRecord",
+                    search: {
+                        deviceSearch: { id: selectedDeviceId },
+                        fromDate: fromStr,
+                        toDate: toStr
+                    }
+                }, function (logs) {
+                    runWithLogs(logs || []);
+                }, function (err) {
+                    hideProgress();
+                    setCalculateEnabled(true);
+                    showMessage("Error loading log records. Check permissions (LogRecord).", true);
+                });
+            } else {
+                showProgress("Loading GPS logs per vehicle (to avoid API limit)…");
+                var BATCH_SIZE = 25;
+                var allLogs = [];
+                var deviceIndex = 0;
 
-            var odoMap = {};
-            var engMap = {};
-            var i, r, deviceId, dateMs, best;
-            for (i = 0; i < odoStatus.length; i++) {
-                r = odoStatus[i];
-                if (!r || !r.device || !r.device.id || typeof r.data !== "number") continue;
-                deviceId = r.device.id;
-                dateMs = new Date(r.dateTime).getTime();
-                best = odoMap[deviceId];
-                if (best == null || dateMs > best.dateMs) {
-                    odoMap[deviceId] = { dateMs: dateMs, miles: r.data / 1609.34 };
+                function fetchNextBatch() {
+                    if (deviceIndex >= devices.length) {
+                        runWithLogs(allLogs);
+                        return;
+                    }
+                    var batch = devices.slice(deviceIndex, deviceIndex + BATCH_SIZE);
+                    deviceIndex += batch.length;
+                    showProgress("Loading GPS logs for vehicles " + (deviceIndex - batch.length + 1) + "–" + deviceIndex + " of " + devices.length + "…");
+                    var calls = batch.map(function (d) {
+                        return ["Get", {
+                            typeName: "LogRecord",
+                            search: {
+                                deviceSearch: { id: d.id },
+                                fromDate: fromStr,
+                                toDate: toStr
+                            }
+                        }];
+                    });
+                    api.multiCall(calls, function (results) {
+                        var j;
+                        for (j = 0; j < (results || []).length; j++) {
+                            if (results[j] && results[j].length) {
+                                allLogs.push.apply(allLogs, results[j]);
+                            }
+                        }
+                        fetchNextBatch();
+                    }, function (err) {
+                        hideProgress();
+                        setCalculateEnabled(true);
+                        showMessage("Error loading log records for some vehicles. Check permissions (LogRecord).", true);
+                    });
                 }
+                fetchNextBatch();
             }
-            for (i = 0; i < engStatus.length; i++) {
-                r = engStatus[i];
-                if (!r || !r.device || !r.device.id || typeof r.data !== "number") continue;
-                deviceId = r.device.id;
-                dateMs = new Date(r.dateTime).getTime();
-                best = engMap[deviceId];
-                if (best == null || dateMs > best.dateMs) {
-                    engMap[deviceId] = { dateMs: dateMs, hours: r.data / 3600 };
-                }
-            }
-            var odoValues = {};
-            for (var id in odoMap) { if (odoMap.hasOwnProperty(id)) odoValues[id] = odoMap[id].miles; }
-            var engValues = {};
-            for (var id in engMap) { if (engMap.hasOwnProperty(id)) engValues[id] = engMap[id].hours; }
-
-            var totals = computeTotalsFromLogs(logs, zone, deviceNameMap, odoValues, engValues);
-
-            hideProgress();
-            setCalculateEnabled(true);
-            setExportEnabled(true);
-
-            lastSummary = {
-                totalMiles: totals.totalMiles,
-                insideMiles: totals.insideMiles,
-                outsideMiles: totals.outsideMiles,
-                fromDate: fromDate,
-                toDate: toDate,
-                points: logs.length
-            };
-            lastDeviceRows = totals.perDevice || [];
-
-            var label = "Mileage (total, inside zone, outside zone) is for the entire period " +
-                fromDate.toISOString().slice(0, 10) + " to " + toDate.toISOString().slice(0, 10) +
-                " (" + logs.length + " GPS points). Odometer and engine hours are the values at period end.";
-            setResults(totals.totalMiles, totals.insideMiles, totals.outsideMiles, label);
-            renderDeviceTable(lastDeviceRows);
         }, function (err) {
             hideProgress();
             setCalculateEnabled(true);
-            showMessage("Error loading zone or log records. Check permissions (Zone, LogRecord) and try a smaller date range.", true);
+            showMessage("Error loading zone or diagnostics. Check permissions (Zone, StatusData).", true);
         });
     }
 
