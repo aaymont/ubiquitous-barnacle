@@ -548,7 +548,8 @@
                     }
                 }
 
-                /* End time = last ignition-off signal (StatusData DiagnosticIgnitionId) inside home zone for this date */
+                /* End time = last ignition-off signal (StatusData DiagnosticIgnitionId) inside home zone for this date.
+                   Ignition-off records often show midnight even when the actual off time is earlier — skip midnight and use trip stop. */
                 var endTimeInsideHomeZone = null;
                 var dayIgnitionOffRecords = [];
                 for (var isi = 0; isi < ignitionStatus.length; isi++) {
@@ -560,6 +561,7 @@
                     if (isNaN(sdMs) || sdMs < dayStartMs || sdMs > dayEndMs) continue;
                     var ignitionOff = (sd.data == null || sd.data === 0 || sd.data === "0");
                     if (!ignitionOff) continue;
+                    if (sdDate.getHours() === 0 && sdDate.getMinutes() === 0 && sdDate.getSeconds() === 0) continue;
                     dayIgnitionOffRecords.push({ sd: sd, sdMs: sdMs });
                 }
                 dayIgnitionOffRecords.sort(function (a, b) { return b.sdMs - a.sdMs; });
@@ -573,7 +575,7 @@
                         break;
                     }
                 }
-                /* Fallback: last trip stop inside home zone if no StatusData match */
+                /* Fallback: last trip stop inside home zone (ignition-off StatusData often shows midnight; trip stop has actual time) */
                 if (endTimeInsideHomeZone == null && dayTrips.length > 0) {
                     for (var ti = dayTrips.length - 1; ti >= 0; ti--) {
                         var tripStopMs = new Date(dayTrips[ti].stop).getTime();
