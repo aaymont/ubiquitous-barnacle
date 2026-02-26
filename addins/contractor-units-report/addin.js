@@ -469,7 +469,7 @@
                 rowsData.push({
                     Date: dayKey,
                     DeviceName: deviceName,
-                    SerialNumber: deviceSerialNumber,
+                    // SerialNumber: deviceSerialNumber,
                     IgnitionOnTimeSeconds: ignitionSeconds,
                     TimeOutsideHomeZoneSeconds: timeOutsideHomeZoneSeconds,
                     StoppedInsideHomeZoneSeconds: stoppedInsideHomeZoneSeconds,
@@ -508,7 +508,7 @@
                     rowsData.push({
                         Date: dayKey,
                         DeviceName: deviceName,
-                        SerialNumber: deviceSerialNumber,
+                        // SerialNumber: deviceSerialNumber,
                         IgnitionOnTimeSeconds: null,
                         TimeOutsideHomeZoneSeconds: null,
                         StoppedInsideHomeZoneSeconds: null,
@@ -628,7 +628,7 @@
     var COLUMNS = [
         { key: "Date", label: "Date" },
         { key: "DeviceName", label: "Device Name" },
-        { key: "SerialNumber", label: "Geotab Serial\nNumber" },
+        // { key: "SerialNumber", label: "Geotab Serial\nNumber" },
         { key: "IgnitionOnTimeSeconds", label: "Ignition On\nTime", format: "duration" },
         { key: "TimeOutsideHomeZoneSeconds", label: "Time Outside\nHome Zone", format: "duration" },
         { key: "StoppedInsideHomeZoneSeconds", label: "Stopped Inside\nHome Zone", format: "duration" },
