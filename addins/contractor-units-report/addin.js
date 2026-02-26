@@ -125,6 +125,16 @@
         return d.toISOString();
     }
 
+    function formatDateTimeLocal(d) {
+        if (!d || !d.getFullYear) return "";
+        var y = d.getFullYear();
+        var m = d.getMonth() + 1;
+        var day = d.getDate();
+        var h = d.getHours();
+        var min = d.getMinutes();
+        return y + "-" + (m < 10 ? "0" : "") + m + "-" + (day < 10 ? "0" : "") + day + " " + (h < 10 ? "0" : "") + h + ":" + (min < 10 ? "0" : "") + min;
+    }
+
     function dateKey(d) {
         return U.dateKey(d);
     }
@@ -405,32 +415,7 @@
                     }
                 }
 
-                var ignitionSeconds = 0;
-                var idleInZoneSeconds = 0;
-                var idleOutZoneSeconds = 0;
-                var timeOutsideHomeZoneSeconds = 0;
-                var stoppedInsideHomeZoneSeconds = 0;
-                /* Idling = ignition on and no movement (Trip.idlingDuration); split in-zone vs out-of-zone by position at trip end vs Start Home Zone */
-                for (var t = 0; t < dayTrips.length; t++) {
-                    var trip = dayTrips[t];
-                    var driveSec = U.getTotalSeconds(trip.drivingDuration);
-                    var idleSec = U.getTotalSeconds(trip.idlingDuration);
-                    if (driveSec === 0 && idleSec === 0 && trip.start && trip.stop) {
-                        driveSec = (new Date(trip.stop).getTime() - new Date(trip.start).getTime()) / 1000;
-                    }
-                    var tripDurationSec = driveSec + idleSec;
-                    ignitionSeconds += tripDurationSec;
-                    var stopMs = new Date(trip.stop).getTime();
-                    var posEnd = U.getPositionAtTime(logs, stopMs);
-                    var inZone = startHomeZone && posEnd && U.pointInZone(posEnd.lat, posEnd.lng, startHomeZone);
-                    if (inZone) idleInZoneSeconds += idleSec;
-                    else idleOutZoneSeconds += idleSec;
-                    /* Total time outside home zone: count trip time when trip end is outside home (including when ignition off later via stops) */
-                    if (!startHomeZone || !posEnd || !U.pointInZone(posEnd.lat, posEnd.lng, startHomeZone)) {
-                        timeOutsideHomeZoneSeconds += tripDurationSec;
-                    }
-                }
-
+                /* Build all stops (gaps >= 10 min), including inside and outside home zone */
                 var stops = [];
                 for (var s = 0; s < dayTrips.length - 1; s++) {
                     var gapStart = new Date(dayTrips[s].stop).getTime();
@@ -438,70 +423,48 @@
                     var gapMs = gapEnd - gapStart;
                     if (gapMs < STOP_THRESHOLD_MS) continue;
                     var pos = U.getPositionAtTime(logs, gapStart);
-                    var inHomeForStop = startHomeZone && pos && pos.lat != null && pos.lng != null && U.pointInZone(pos.lat, pos.lng, startHomeZone);
-                    if (inHomeForStop) {
-                        stoppedInsideHomeZoneSeconds += gapMs / 1000;
-                        continue;
-                    }
-                    stops.push({ durationMs: gapMs, position: pos });
+                    var inHomeZone = !!(startHomeZone && pos && pos.lat != null && pos.lng != null && U.pointInZone(pos.lat, pos.lng, startHomeZone));
+                    stops.push({ gapStart: gapStart, gapEnd: gapEnd, durationMs: gapMs, position: pos, inHomeZone: inHomeZone });
                 }
-                var stopCount = stops.length;
-                var totalStoppedMs = 0;
+
+                /* One row per stop */
                 for (var si = 0; si < stops.length; si++) {
-                    totalStoppedMs += stops[si].durationMs;
-                    timeOutsideHomeZoneSeconds += stops[si].durationMs / 1000;
-                }
-                var locationParts = [];
-                for (var sl = 0; sl < stops.length; sl++) {
-                    var pos = stops[sl].position;
-                    var durationMs = stops[sl].durationMs;
-                    if (!pos || pos.lat == null || pos.lng == null) continue;
-                    var zoneName = U.findZoneAtPoint(pos.lat, pos.lng, allZones, startHomeZone ? startHomeZone.id : null);
-                    if (zoneName) {
-                        locationParts.push({ display: zoneName, durationMs: durationMs });
+                    var stop = stops[si];
+                    var pos = stop.position;
+                    var locationPart;
+                    if (stop.inHomeZone && startHomeZone) {
+                        locationPart = { display: startHomeZone.name || "Home zone" };
+                    } else if (pos && pos.lat != null && pos.lng != null) {
+                        var zoneName = U.findZoneAtPoint(pos.lat, pos.lng, allZones, startHomeZone ? startHomeZone.id : null);
+                        if (zoneName) {
+                            locationPart = { display: zoneName };
+                        } else {
+                            locationPart = { needAddress: true, lat: pos.lat, lng: pos.lng };
+                        }
                     } else {
-                        locationParts.push({ needAddress: true, lat: pos.lat, lng: pos.lng, durationMs: durationMs });
+                        locationPart = { display: "" };
                     }
-                }
-
-                if (ignitionSeconds === 0) continue;
-
-                var shiftStartMs = dayTrips.length ? new Date(dayTrips[0].start).getTime() : null;
-                var shiftEndMs = dayTrips.length ? new Date(dayTrips[dayTrips.length - 1].stop).getTime() : null;
-                var shiftDurationMs = (shiftStartMs != null && shiftEndMs != null) ? (shiftEndMs - shiftStartMs) : 0;
-                var allowedBreakMin = U.getAllowedBreakMinutes(shiftDurationMs);
-
-                function formatStopWithDuration(part) {
-                    var loc = (part.display != null) ? part.display : (part.lat != null && part.lng != null ? U.formatLatLng(part.lat, part.lng) : "");
-                    var durMin = part.durationMs != null ? Math.round(part.durationMs / 60000) : 0;
-                    var durStr = durMin < 60 ? (durMin + " min") : (Math.floor(durMin / 60) + " h " + (durMin % 60) + " min");
-                    return loc ? (loc + " (" + durStr + ")") : durStr;
-                }
-                var stopLocationsStr = [];
-                for (var pi = 0; pi < locationParts.length; pi++) {
-                    stopLocationsStr.push(formatStopWithDuration(locationParts[pi]));
-                }
-                var rowIdx = rowsData.length;
-                for (var sl2 = 0; sl2 < locationParts.length; sl2++) {
-                    var part = locationParts[sl2];
-                    if (part.needAddress && part.lat != null && part.lng != null) {
-                        coordsFlat.push({ latitude: part.lat, longitude: part.lng });
-                        coordToRowEntry.push({ rowIndex: rowIdx, partIndex: sl2 });
+                    var locationParts = [locationPart];
+                    var locationDisplay = (locationPart.display != null && locationPart.display !== "") ? locationPart.display : (locationPart.lat != null && locationPart.lng != null ? U.formatLatLng(locationPart.lat, locationPart.lng) : "");
+                    var rowIdx = rowsData.length;
+                    if (locationPart.needAddress && locationPart.lat != null && locationPart.lng != null) {
+                        coordsFlat.push({ latitude: locationPart.lat, longitude: locationPart.lng });
+                        coordToRowEntry.push({ rowIndex: rowIdx, partIndex: 0 });
                     }
+                    var stopStartDate = new Date(stop.gapStart);
+                    var stopEndDate = new Date(stop.gapEnd);
+                    rowsData.push({
+                        Date: dayKey,
+                        DeviceName: deviceName,
+                        SerialNumber: deviceSerialNumber,
+                        StopStart: formatDateTimeLocal(stopStartDate),
+                        StopEnd: formatDateTimeLocal(stopEndDate),
+                        DurationSeconds: stop.durationMs / 1000,
+                        Location: locationDisplay,
+                        InHomeZone: stop.inHomeZone ? "Yes" : "No",
+                        _locationParts: locationParts
+                    });
                 }
-                rowsData.push({
-                    Date: dayKey,
-                    DeviceName: deviceName,
-                    SerialNumber: deviceSerialNumber,
-                    IgnitionOnTimeSeconds: ignitionSeconds,
-                    TimeOutsideHomeZoneSeconds: timeOutsideHomeZoneSeconds,
-                    StoppedInsideHomeZoneSeconds: stoppedInsideHomeZoneSeconds,
-                    StopCount: stopCount,
-                    StopLocations: stopLocationsStr.join("; "),
-                    TotalStoppedTimeSeconds: totalStoppedMs / 1000,
-                    AllowedBreakMinutes: allowedBreakMin,
-                    _locationParts: locationParts
-                });
             }
 
             function finishDeviceAndContinue() {
@@ -520,19 +483,11 @@
             }
 
             if (!ADDRESS_LOOKUP_ENABLED) {
-                var formatStopWithDurationDisabled = function (part) {
-                    var loc = (part.display != null) ? part.display : (part.lat != null && part.lng != null ? U.formatLatLng(part.lat, part.lng) : "");
-                    var durMin = part.durationMs != null ? Math.round(part.durationMs / 60000) : 0;
-                    var durStr = durMin < 60 ? (durMin + " min") : (Math.floor(durMin / 60) + " h " + (durMin % 60) + " min");
-                    return loc ? (loc + " (" + durStr + ")") : durStr;
-                };
                 for (var ri = 0; ri < rowsData.length; ri++) {
-                    var parts = rowsData[ri]._locationParts;
-                    var strs = [];
-                    for (var p = 0; p < parts.length; p++) {
-                        strs.push(formatStopWithDurationDisabled(parts[p]));
+                    var part = rowsData[ri]._locationParts[0];
+                    if (part) {
+                        rowsData[ri].Location = (part.display != null && part.display !== "") ? part.display : (part.lat != null && part.lng != null ? U.formatLatLng(part.lat, part.lng) : "");
                     }
-                    rowsData[ri].StopLocations = strs.join("; ");
                 }
                 finishDeviceAndContinue();
                 return;
@@ -559,28 +514,20 @@
                         fallbackList.push({ ref: ref, lat: part.lat, lng: part.lng });
                     }
                 }
-                function formatStopWithDuration(part) {
-                    var loc = (part.display != null) ? part.display : (part.lat != null && part.lng != null ? U.formatLatLng(part.lat, part.lng) : "");
-                    var durMin = part.durationMs != null ? Math.round(part.durationMs / 60000) : 0;
-                    var durStr = durMin < 60 ? (durMin + " min") : (Math.floor(durMin / 60) + " h " + (durMin % 60) + " min");
-                    return loc ? (loc + " (" + durStr + ")") : durStr;
-                }
-                function rebuildStopLocationsAndFinish() {
+                function rebuildLocationAndFinish() {
                     for (var ri = 0; ri < rowsData.length; ri++) {
-                        var parts = rowsData[ri]._locationParts;
-                        var strs = [];
-                        for (var p = 0; p < parts.length; p++) {
-                            strs.push(formatStopWithDuration(parts[p]));
+                        var part = rowsData[ri]._locationParts[0];
+                        if (part) {
+                            rowsData[ri].Location = (part.display != null && part.display !== "") ? part.display : (part.lat != null && part.lng != null ? U.formatLatLng(part.lat, part.lng) : "");
                         }
-                        rowsData[ri].StopLocations = strs.join("; ");
                     }
                     finishDeviceAndContinue();
                 }
                 if (fallbackList.length === 0) {
-                    rebuildStopLocationsAndFinish();
+                    rebuildLocationAndFinish();
                     return;
                 }
-                runNominatimFallback(fallbackList, rowsData, coordToRowEntry, "Looking up addresses (OpenStreetMap)", rebuildStopLocationsAndFinish);
+                runNominatimFallback(fallbackList, rowsData, coordToRowEntry, "Looking up addresses (OpenStreetMap)", rebuildLocationAndFinish);
             }, function (err) {
                 var fallbackList = [];
                 for (var fi = 0; fi < coordToRowEntry.length; fi++) {
@@ -590,29 +537,21 @@
                         fallbackList.push({ ref: ref, lat: part.lat, lng: part.lng });
                     }
                 }
-                function formatStopWithDuration(part) {
-                    var loc = (part.display != null) ? part.display : (part.lat != null && part.lng != null ? U.formatLatLng(part.lat, part.lng) : "");
-                    var durMin = part.durationMs != null ? Math.round(part.durationMs / 60000) : 0;
-                    var durStr = durMin < 60 ? (durMin + " min") : (Math.floor(durMin / 60) + " h " + (durMin % 60) + " min");
-                    return loc ? (loc + " (" + durStr + ")") : durStr;
-                }
-                function rebuildStopLocationsAndFinish() {
+                function rebuildLocationAndFinish() {
                     for (var ri = 0; ri < rowsData.length; ri++) {
-                        var parts = rowsData[ri]._locationParts;
-                        var strs = [];
-                        for (var p = 0; p < parts.length; p++) {
-                            strs.push(formatStopWithDuration(parts[p]));
+                        var part = rowsData[ri]._locationParts[0];
+                        if (part) {
+                            rowsData[ri].Location = (part.display != null && part.display !== "") ? part.display : (part.lat != null && part.lng != null ? U.formatLatLng(part.lat, part.lng) : "");
                         }
-                        rowsData[ri].StopLocations = strs.join("; ");
                     }
                     finishDeviceAndContinue();
                 }
                 if (fallbackList.length === 0) {
-                    rebuildStopLocationsAndFinish();
+                    rebuildLocationAndFinish();
                     return;
                 }
                 showProgress("Geotab address lookup unavailable; using OpenStreetMap (Nominatim)…");
-                runNominatimFallback(fallbackList, rowsData, coordToRowEntry, "Looking up addresses (OpenStreetMap)", rebuildStopLocationsAndFinish);
+                runNominatimFallback(fallbackList, rowsData, coordToRowEntry, "Looking up addresses (OpenStreetMap)", rebuildLocationAndFinish);
             });
         }, function (err) {
             hideProgress();
@@ -625,13 +564,11 @@
         { key: "Date", label: "Date" },
         { key: "DeviceName", label: "Device Name" },
         { key: "SerialNumber", label: "Geotab Serial Number" },
-        { key: "IgnitionOnTimeSeconds", label: "Ignition On Time", format: "duration" },
-        { key: "TimeOutsideHomeZoneSeconds", label: "Time Outside Home Zone", format: "duration" },
-        { key: "StoppedInsideHomeZoneSeconds", label: "Stopped Inside Home Zone", format: "duration" },
-        { key: "StopCount", label: "Stop Count" },
-        { key: "StopLocations", label: "Stop Locations" },
-        { key: "TotalStoppedTimeSeconds", label: "Total Stopped Time", format: "duration" },
-        { key: "AllowedBreakMinutes", label: "Allowed Break (min)" }
+        { key: "StopStart", label: "Stop Start" },
+        { key: "StopEnd", label: "Stop End" },
+        { key: "DurationSeconds", label: "Duration", format: "duration" },
+        { key: "Location", label: "Location" },
+        { key: "InHomeZone", label: "In Home Zone" }
     ];
 
     function renderPreview() {
