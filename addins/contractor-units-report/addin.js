@@ -9,6 +9,7 @@
     var HOME_ZONE_ID = "b1";
     var PREVIEW_ROWS = 200;
     var STOP_THRESHOLD_MS = 10 * 60 * 1000;
+    var ADDRESS_LOOKUP_ENABLED = false;
 
     var apiRef = null;
     var reportRows = [];
@@ -500,6 +501,25 @@
             }
 
             if (coordsFlat.length === 0) {
+                finishDeviceAndContinue();
+                return;
+            }
+
+            if (!ADDRESS_LOOKUP_ENABLED) {
+                var formatStopWithDurationDisabled = function (part) {
+                    var loc = (part.display != null) ? part.display : (part.lat != null && part.lng != null ? U.formatLatLng(part.lat, part.lng) : "");
+                    var durMin = part.durationMs != null ? Math.round(part.durationMs / 60000) : 0;
+                    var durStr = durMin < 60 ? (durMin + " min") : (Math.floor(durMin / 60) + " h " + (durMin % 60) + " min");
+                    return loc ? (loc + " (" + durStr + ")") : durStr;
+                };
+                for (var ri = 0; ri < rowsData.length; ri++) {
+                    var parts = rowsData[ri]._locationParts;
+                    var strs = [];
+                    for (var p = 0; p < parts.length; p++) {
+                        strs.push(formatStopWithDurationDisabled(parts[p]));
+                    }
+                    rowsData[ri].StopLocations = strs.join("; ");
+                }
                 finishDeviceAndContinue();
                 return;
             }
