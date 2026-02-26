@@ -591,6 +591,15 @@
 
                 if (ignitionSeconds === 0) continue;
 
+                /* Shift time = (end - start) - stops outside zone + allowed break */
+                var shiftTimeSeconds = null;
+                if (startTimeInsideHomeZone != null && endTimeInsideHomeZone != null && endTimeInsideHomeZone >= startTimeInsideHomeZone) {
+                    var spanSeconds = (endTimeInsideHomeZone - startTimeInsideHomeZone) / 1000;
+                    var stoppedOutsideSeconds = totalStoppedMs / 1000;
+                    var allowedBreakSeconds = (allowedBreakMin || 0) * 60;
+                    shiftTimeSeconds = Math.max(0, spanSeconds - stoppedOutsideSeconds + allowedBreakSeconds);
+                }
+
                 /* Summary row (first line for this vehicle/day) */
                 rowsData.push({
                     Date: dayKey,
@@ -609,6 +618,7 @@
                     DurationSeconds: null,
                     Location: "",
                     InHomeZone: "",
+                    ShiftTimeSeconds: shiftTimeSeconds,
                     isSummaryRow: true
                 });
 
@@ -650,6 +660,7 @@
                         DurationSeconds: stop.durationMs / 1000,
                         Location: locationDisplay,
                         InHomeZone: stop.inHomeZone ? "Yes" : "No",
+                        ShiftTimeSeconds: null,
                         isSummaryRow: false,
                         _locationParts: locationParts
                     });
@@ -771,7 +782,8 @@
         { key: "StopEnd", label: "Stop End" },
         { key: "DurationSeconds", label: "Duration", format: "duration" },
         { key: "Location", label: "Location" },
-        { key: "InHomeZone", label: "In Home\nZone" }
+        { key: "InHomeZone", label: "In Home\nZone" },
+        { key: "ShiftTimeSeconds", label: "Shift Time", format: "duration" }
     ];
 
     function renderPreview() {
