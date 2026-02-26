@@ -173,6 +173,26 @@
         };
     };
 
+    function parseDateStartOfDay(isoDateStr) {
+        if (!isoDateStr || isoDateStr.length < 10) return null;
+        var parts = isoDateStr.split("-");
+        if (parts.length < 3) return null;
+        var y = parseInt(parts[0], 10);
+        var m = parseInt(parts[1], 10) - 1;
+        var d = parseInt(parts[2], 10);
+        return new Date(y, m, d, 0, 0, 0, 0);
+    }
+
+    function parseDateEndOfDay(isoDateStr) {
+        if (!isoDateStr || isoDateStr.length < 10) return null;
+        var parts = isoDateStr.split("-");
+        if (parts.length < 3) return null;
+        var y = parseInt(parts[0], 10);
+        var m = parseInt(parts[1], 10) - 1;
+        var d = parseInt(parts[2], 10);
+        return new Date(y, m, d, 23, 59, 59, 999);
+    }
+
     function getDateRangeFromUI() {
         var preset = getEl("timeframe-preset");
         var fromInput = getEl("from-date");
@@ -180,8 +200,20 @@
         var to = new Date();
         var from = new Date();
         if (preset && preset.value === "custom" && fromInput && toInput) {
-            from = new Date(fromInput.value || to);
-            to = new Date(toInput.value || to);
+            var fromVal = fromInput.value;
+            var toVal = toInput.value;
+            if (fromVal) {
+                from = parseDateStartOfDay(fromVal);
+            } else {
+                from = new Date(to);
+                from.setHours(0, 0, 0, 0);
+            }
+            if (toVal) {
+                to = parseDateEndOfDay(toVal);
+            } else {
+                to = new Date();
+                to.setHours(23, 59, 59, 999);
+            }
         } else if (preset && preset.value === "lastMonth") {
             from.setMonth(from.getMonth() - 1);
             from.setDate(1);
