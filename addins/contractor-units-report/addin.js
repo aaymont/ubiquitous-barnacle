@@ -463,6 +463,19 @@
                 var shiftDurationMs = (shiftStartMs != null && shiftEndMs != null) ? (shiftEndMs - shiftStartMs) : 0;
                 var allowedBreakMin = U.getAllowedBreakMinutes(shiftDurationMs);
 
+                /* Start time = first ignition on (trip start) inside home zone */
+                var startTimeInsideHomeZone = null;
+                for (var ti = 0; ti < dayTrips.length; ti++) {
+                    var tripStartMs = new Date(dayTrips[ti].start).getTime();
+                    var posStart = U.getPositionAtTime(logs, tripStartMs);
+                    var inZoneB1 = !!(startHomeZone && posStart && posStart.lat != null && posStart.lng != null && U.pointInZone(posStart.lat, posStart.lng, startHomeZone));
+                    var nearOpsCentre = !!(posStart && posStart.lat != null && posStart.lng != null && U.isWithinOperationsCentre(posStart.lat, posStart.lng));
+                    if (inZoneB1 || nearOpsCentre) {
+                        startTimeInsideHomeZone = tripStartMs;
+                        break;
+                    }
+                }
+
                 if (ignitionSeconds === 0) continue;
 
                 /* Summary row (first line for this vehicle/day) */
@@ -470,6 +483,7 @@
                     Date: dayKey,
                     DeviceName: deviceName,
                     // SerialNumber: deviceSerialNumber,
+                    StartTime: startTimeInsideHomeZone != null ? formatDateTimeLocal(new Date(startTimeInsideHomeZone)) : "",
                     IgnitionOnTimeSeconds: ignitionSeconds,
                     TimeOutsideHomeZoneSeconds: timeOutsideHomeZoneSeconds,
                     StoppedInsideHomeZoneSeconds: stoppedInsideHomeZoneSeconds,
@@ -509,6 +523,7 @@
                         Date: dayKey,
                         DeviceName: deviceName,
                         // SerialNumber: deviceSerialNumber,
+                        StartTime: "",
                         IgnitionOnTimeSeconds: null,
                         TimeOutsideHomeZoneSeconds: null,
                         StoppedInsideHomeZoneSeconds: null,
@@ -629,6 +644,7 @@
         { key: "Date", label: "Date" },
         { key: "DeviceName", label: "Device Name" },
         // { key: "SerialNumber", label: "Geotab Serial\nNumber" },
+        { key: "StartTime", label: "Start Time" },
         { key: "IgnitionOnTimeSeconds", label: "Ignition On\nTime", format: "duration" },
         { key: "TimeOutsideHomeZoneSeconds", label: "Time Outside\nHome Zone", format: "duration" },
         { key: "StoppedInsideHomeZoneSeconds", label: "Stopped Inside\nHome Zone", format: "duration" },
