@@ -207,6 +207,10 @@ body {
     background: #f0f7ff;
 }
 
+.report-table tbody tr.summary-row td {
+    font-weight: bold;
+}
+
 .export-wrap {
     margin-top: var(--zenith-spacing-sm);
 }

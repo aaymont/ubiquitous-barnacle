@@ -415,8 +415,30 @@
                     }
                 }
 
+                /* Daily aggregates for summary row */
+                var ignitionSeconds = 0;
+                var timeOutsideHomeZoneSeconds = 0;
+                var stoppedInsideHomeZoneSeconds = 0;
+                for (var t = 0; t < dayTrips.length; t++) {
+                    var trip = dayTrips[t];
+                    var driveSec = U.getTotalSeconds(trip.drivingDuration);
+                    var idleSec = U.getTotalSeconds(trip.idlingDuration);
+                    if (driveSec === 0 && idleSec === 0 && trip.start && trip.stop) {
+                        driveSec = (new Date(trip.stop).getTime() - new Date(trip.start).getTime()) / 1000;
+                    }
+                    var tripDurationSec = driveSec + idleSec;
+                    ignitionSeconds += tripDurationSec;
+                    var stopMs = new Date(trip.stop).getTime();
+                    var posEnd = U.getPositionAtTime(logs, stopMs);
+                    if (!startHomeZone || !posEnd || !U.pointInZone(posEnd.lat, posEnd.lng, startHomeZone)) {
+                        timeOutsideHomeZoneSeconds += tripDurationSec;
+                    }
+                }
+
                 /* Build all stops (gaps >= 10 min), including inside and outside home zone */
                 var stops = [];
+                var stopCount = 0;
+                var totalStoppedMs = 0;
                 for (var s = 0; s < dayTrips.length - 1; s++) {
                     var gapStart = new Date(dayTrips[s].stop).getTime();
                     var gapEnd = new Date(dayTrips[s + 1].start).getTime();
@@ -425,9 +447,41 @@
                     var pos = U.getPositionAtTime(logs, gapStart);
                     var inHomeZone = !!(startHomeZone && pos && pos.lat != null && pos.lng != null && U.pointInZone(pos.lat, pos.lng, startHomeZone));
                     stops.push({ gapStart: gapStart, gapEnd: gapEnd, durationMs: gapMs, position: pos, inHomeZone: inHomeZone });
+                    if (inHomeZone) {
+                        stoppedInsideHomeZoneSeconds += gapMs / 1000;
+                    } else {
+                        stopCount += 1;
+                        totalStoppedMs += gapMs;
+                        timeOutsideHomeZoneSeconds += gapMs / 1000;
+                    }
                 }
+                var shiftStartMs = dayTrips.length ? new Date(dayTrips[0].start).getTime() : null;
+                var shiftEndMs = dayTrips.length ? new Date(dayTrips[dayTrips.length - 1].stop).getTime() : null;
+                var shiftDurationMs = (shiftStartMs != null && shiftEndMs != null) ? (shiftEndMs - shiftStartMs) : 0;
+                var allowedBreakMin = U.getAllowedBreakMinutes(shiftDurationMs);
 
-                /* One row per stop */
+                if (ignitionSeconds === 0) continue;
+
+                /* Summary row (first line for this vehicle/day) */
+                rowsData.push({
+                    Date: dayKey,
+                    DeviceName: deviceName,
+                    SerialNumber: deviceSerialNumber,
+                    IgnitionOnTimeSeconds: ignitionSeconds,
+                    TimeOutsideHomeZoneSeconds: timeOutsideHomeZoneSeconds,
+                    StoppedInsideHomeZoneSeconds: stoppedInsideHomeZoneSeconds,
+                    StopCount: stopCount,
+                    TotalStoppedTimeSeconds: totalStoppedMs / 1000,
+                    AllowedBreakMinutes: allowedBreakMin,
+                    StopStart: "",
+                    StopEnd: "",
+                    DurationSeconds: null,
+                    Location: "",
+                    InHomeZone: "",
+                    isSummaryRow: true
+                });
+
+                /* One detail row per stop */
                 for (var si = 0; si < stops.length; si++) {
                     var stop = stops[si];
                     var pos = stop.position;
@@ -457,11 +511,18 @@
                         Date: dayKey,
                         DeviceName: deviceName,
                         SerialNumber: deviceSerialNumber,
+                        IgnitionOnTimeSeconds: null,
+                        TimeOutsideHomeZoneSeconds: null,
+                        StoppedInsideHomeZoneSeconds: null,
+                        StopCount: null,
+                        TotalStoppedTimeSeconds: null,
+                        AllowedBreakMinutes: null,
                         StopStart: formatDateTimeLocal(stopStartDate),
                         StopEnd: formatDateTimeLocal(stopEndDate),
                         DurationSeconds: stop.durationMs / 1000,
                         Location: locationDisplay,
                         InHomeZone: stop.inHomeZone ? "Yes" : "No",
+                        isSummaryRow: false,
                         _locationParts: locationParts
                     });
                 }
@@ -564,6 +625,12 @@
         { key: "Date", label: "Date" },
         { key: "DeviceName", label: "Device Name" },
         { key: "SerialNumber", label: "Geotab Serial Number" },
+        { key: "IgnitionOnTimeSeconds", label: "Ignition On Time", format: "duration" },
+        { key: "TimeOutsideHomeZoneSeconds", label: "Time Outside Home Zone", format: "duration" },
+        { key: "StoppedInsideHomeZoneSeconds", label: "Stopped Inside Home Zone", format: "duration" },
+        { key: "StopCount", label: "Stop Count" },
+        { key: "TotalStoppedTimeSeconds", label: "Total Stopped Time", format: "duration" },
+        { key: "AllowedBreakMinutes", label: "Allowed Break (min)" },
         { key: "StopStart", label: "Stop Start" },
         { key: "StopEnd", label: "Stop End" },
         { key: "DurationSeconds", label: "Duration", format: "duration" },
@@ -591,6 +658,7 @@
         for (var r = 0; r < limit; r++) {
             var row = reportRows[r];
             var tr2 = document.createElement("tr");
+            if (row.isSummaryRow) tr2.classList.add("summary-row");
             for (var c2 = 0; c2 < COLUMNS.length; c2++) {
                 var td = document.createElement("td");
                 var val = row[COLUMNS[c2].key];
