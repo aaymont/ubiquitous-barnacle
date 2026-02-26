@@ -6,6 +6,11 @@
     var ALLOWED_BREAK_30 = 30;
     var ALLOWED_BREAK_45 = 45;
 
+    /* Operations Centre (zone b1) approximate location — used when zone geometry is not sufficient */
+    var OPERATIONS_CENTRE_LAT = 43.97836;
+    var OPERATIONS_CENTRE_LNG = -79.29028;
+    var OPERATIONS_CENTRE_RADIUS_M = 500;
+
     function pointInPolygon(lat, lng, points) {
         var n = points.length;
         var inside = false;
@@ -54,6 +59,17 @@
                 return (R * c) <= zone.radius;
             }
             return false;
+        },
+        isWithinOperationsCentre: function (lat, lng) {
+            if (lat == null || lng == null) return false;
+            var R = 6371000;
+            var dLat = (OPERATIONS_CENTRE_LAT - lat) * Math.PI / 180;
+            var dLon = (OPERATIONS_CENTRE_LNG - lng) * Math.PI / 180;
+            var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat * Math.PI / 180) * Math.cos(OPERATIONS_CENTRE_LAT * Math.PI / 180) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return (R * c) <= OPERATIONS_CENTRE_RADIUS_M;
         },
         findZoneAtPoint: function (lat, lng, zones, excludeZoneId) {
             for (var z = 0; z < zones.length; z++) {

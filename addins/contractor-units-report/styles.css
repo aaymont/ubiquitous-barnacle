@@ -196,7 +196,10 @@ body {
     font-weight: 600;
     background: var(--zenith-neutral-100);
     border-bottom: 2px solid var(--border);
-    white-space: nowrap;
+    white-space: normal;
+    max-width: 100px;
+    line-height: 1.25;
+    vertical-align: bottom;
 }
 
 .report-table tbody tr:nth-child(even) {

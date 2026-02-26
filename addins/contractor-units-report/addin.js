@@ -446,7 +446,9 @@
                     var gapMs = gapEnd - gapStart;
                     if (gapMs < STOP_THRESHOLD_MS) continue;
                     var pos = U.getPositionAtTime(logs, gapStart);
-                    var inHomeZone = !!(startHomeZone && pos && pos.lat != null && pos.lng != null && U.pointInZone(pos.lat, pos.lng, startHomeZone));
+                    var inZoneB1 = !!(startHomeZone && pos && pos.lat != null && pos.lng != null && U.pointInZone(pos.lat, pos.lng, startHomeZone));
+                    var nearOpsCentre = !!(pos && pos.lat != null && pos.lng != null && U.isWithinOperationsCentre(pos.lat, pos.lng));
+                    var inHomeZone = inZoneB1 || nearOpsCentre;
                     stops.push({ gapStart: gapStart, gapEnd: gapEnd, durationMs: gapMs, position: pos, inHomeZone: inHomeZone });
                     if (inHomeZone) {
                         stoppedInsideHomeZoneSeconds += gapMs / 1000;
@@ -482,30 +484,21 @@
                     isSummaryRow: true
                 });
 
-                /* One detail row per stop */
+                /* One detail row per stop — inside Operations Centre (b1) → "Operations Centre"; outside → coordinates */
                 for (var si = 0; si < stops.length; si++) {
                     var stop = stops[si];
                     var pos = stop.position;
                     var locationPart;
-                    if (stop.inHomeZone && startHomeZone) {
-                        locationPart = { display: startHomeZone.name || "Home zone" };
+                    if (stop.inHomeZone) {
+                        locationPart = { display: "Operations Centre" };
                     } else if (pos && pos.lat != null && pos.lng != null) {
-                        var zoneName = U.findZoneAtPoint(pos.lat, pos.lng, allZones, startHomeZone ? startHomeZone.id : null);
-                        if (zoneName) {
-                            locationPart = { display: zoneName };
-                        } else {
-                            locationPart = { needAddress: true, lat: pos.lat, lng: pos.lng };
-                        }
+                        locationPart = { display: U.formatLatLng(pos.lat, pos.lng) };
                     } else {
                         locationPart = { display: "" };
                     }
                     var locationParts = [locationPart];
-                    var locationDisplay = (locationPart.display != null && locationPart.display !== "") ? locationPart.display : (locationPart.lat != null && locationPart.lng != null ? U.formatLatLng(locationPart.lat, locationPart.lng) : "");
+                    var locationDisplay = (locationPart.display != null && locationPart.display !== "") ? locationPart.display : "";
                     var rowIdx = rowsData.length;
-                    if (locationPart.needAddress && locationPart.lat != null && locationPart.lng != null) {
-                        coordsFlat.push({ latitude: locationPart.lat, longitude: locationPart.lng });
-                        coordToRowEntry.push({ rowIndex: rowIdx, partIndex: 0 });
-                    }
                     var stopStartDate = new Date(stop.gapStart);
                     var stopEndDate = new Date(stop.gapEnd);
                     rowsData.push({
