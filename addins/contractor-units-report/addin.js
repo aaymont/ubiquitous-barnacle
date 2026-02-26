@@ -591,13 +591,14 @@
 
                 if (ignitionSeconds === 0) continue;
 
-                /* Shift time = (end - start) - stops outside zone + allowed break */
+                /* Shift time = (end - start) - stops outside zone + min(allowed break, stopped outside) */
                 var shiftTimeSeconds = null;
                 if (startTimeInsideHomeZone != null && endTimeInsideHomeZone != null && endTimeInsideHomeZone >= startTimeInsideHomeZone) {
                     var spanSeconds = (endTimeInsideHomeZone - startTimeInsideHomeZone) / 1000;
                     var stoppedOutsideSeconds = totalStoppedMs / 1000;
                     var allowedBreakSeconds = (allowedBreakMin || 0) * 60;
-                    shiftTimeSeconds = Math.max(0, spanSeconds - stoppedOutsideSeconds + allowedBreakSeconds);
+                    var breakCredit = Math.min(allowedBreakSeconds, stoppedOutsideSeconds);
+                    shiftTimeSeconds = Math.max(0, spanSeconds - stoppedOutsideSeconds + breakCredit);
                 }
 
                 /* Summary row (first line for this vehicle/day) */
