@@ -408,6 +408,7 @@
                 var ignitionSeconds = 0;
                 var idleInZoneSeconds = 0;
                 var idleOutZoneSeconds = 0;
+                var timeOutsideHomeZoneSeconds = 0;
                 /* Idling = ignition on and no movement (Trip.idlingDuration); split in-zone vs out-of-zone by position at trip end vs Start Home Zone */
                 for (var t = 0; t < dayTrips.length; t++) {
                     var trip = dayTrips[t];
@@ -416,12 +417,17 @@
                     if (driveSec === 0 && idleSec === 0 && trip.start && trip.stop) {
                         driveSec = (new Date(trip.stop).getTime() - new Date(trip.start).getTime()) / 1000;
                     }
-                    ignitionSeconds += driveSec + idleSec;
+                    var tripDurationSec = driveSec + idleSec;
+                    ignitionSeconds += tripDurationSec;
                     var stopMs = new Date(trip.stop).getTime();
                     var posEnd = U.getPositionAtTime(logs, stopMs);
                     var inZone = startHomeZone && posEnd && U.pointInZone(posEnd.lat, posEnd.lng, startHomeZone);
                     if (inZone) idleInZoneSeconds += idleSec;
                     else idleOutZoneSeconds += idleSec;
+                    /* Total time outside home zone: count trip time when trip end is outside home (including when ignition off later via stops) */
+                    if (!startHomeZone || !posEnd || !U.pointInZone(posEnd.lat, posEnd.lng, startHomeZone)) {
+                        timeOutsideHomeZoneSeconds += tripDurationSec;
+                    }
                 }
 
                 var stops = [];
@@ -436,7 +442,10 @@
                 }
                 var stopCount = stops.length;
                 var totalStoppedMs = 0;
-                for (var si = 0; si < stops.length; si++) totalStoppedMs += stops[si].durationMs;
+                for (var si = 0; si < stops.length; si++) {
+                    totalStoppedMs += stops[si].durationMs;
+                    timeOutsideHomeZoneSeconds += stops[si].durationMs / 1000;
+                }
                 var locationParts = [];
                 for (var sl = 0; sl < stops.length; sl++) {
                     var pos = stops[sl].position;
@@ -480,6 +489,7 @@
                     DeviceName: deviceName,
                     SerialNumber: deviceSerialNumber,
                     IgnitionOnTimeSeconds: ignitionSeconds,
+                    TimeOutsideHomeZoneSeconds: timeOutsideHomeZoneSeconds,
                     IdleInZoneSeconds: idleInZoneSeconds,
                     IdleOutZoneSeconds: idleOutZoneSeconds,
                     StopCount: stopCount,
@@ -612,6 +622,7 @@
         { key: "DeviceName", label: "Device Name" },
         { key: "SerialNumber", label: "Geotab Serial Number" },
         { key: "IgnitionOnTimeSeconds", label: "Ignition On Time", format: "duration" },
+        { key: "TimeOutsideHomeZoneSeconds", label: "Time Outside Home Zone", format: "duration" },
         { key: "IdleInZoneSeconds", label: "Idle In Zone", format: "duration" },
         { key: "IdleOutZoneSeconds", label: "Idle Out Zone", format: "duration" },
         { key: "StopCount", label: "Stop Count" },
