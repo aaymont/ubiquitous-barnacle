@@ -106,7 +106,8 @@
             showProgress(progressPrefix + " (" + (idx + 1) + " of " + fallbackList.length + ")…");
             nominatimReverse(item.lat, item.lng, function (err, displayName) {
                 if (!err && displayName) {
-                    var part = rowsData[item.ref.rowIndex]._locationParts[item.ref.partIndex];
+                    var parts = rowsData[item.ref.rowIndex]._locationParts;
+                    var part = parts && parts[item.ref.partIndex];
                     if (part && typeof part === "object") part.display = displayName;
                 }
                 idx++;
@@ -530,7 +531,7 @@
 
             function finishDeviceAndContinue() {
                 for (var r = 0; r < rowsData.length; r++) {
-                    delete rowsData[r]._locationParts;
+                    if (rowsData[r]._locationParts !== undefined) delete rowsData[r]._locationParts;
                 }
                 for (var r = 0; r < rowsData.length; r++) {
                     reportRows.push(rowsData[r]);
@@ -545,7 +546,8 @@
 
             if (!ADDRESS_LOOKUP_ENABLED) {
                 for (var ri = 0; ri < rowsData.length; ri++) {
-                    var part = rowsData[ri]._locationParts[0];
+                    var parts = rowsData[ri]._locationParts;
+                    var part = parts && parts[0];
                     if (part) {
                         rowsData[ri].Location = (part.display != null && part.display !== "") ? part.display : (part.lat != null && part.lng != null ? U.formatLatLng(part.lat, part.lng) : "");
                     }
@@ -559,7 +561,8 @@
                 var numAddr = (addresses && addresses.length) ? addresses.length : 0;
                 for (var ai = 0; ai < numAddr && ai < coordToRowEntry.length; ai++) {
                     var ref = coordToRowEntry[ai];
-                    var part = rowsData[ref.rowIndex]._locationParts[ref.partIndex];
+                    var parts = rowsData[ref.rowIndex]._locationParts;
+                    var part = parts && parts[ref.partIndex];
                     if (part && part.needAddress) {
                         var addrStr = U.formatAddress(addresses[ai]);
                         if (addrStr && addrStr.trim() !== "") {
@@ -570,14 +573,16 @@
                 var fallbackList = [];
                 for (var fi = 0; fi < coordToRowEntry.length; fi++) {
                     var ref = coordToRowEntry[fi];
-                    var part = rowsData[ref.rowIndex]._locationParts[ref.partIndex];
+                    var parts = rowsData[ref.rowIndex]._locationParts;
+                    var part = parts && parts[ref.partIndex];
                     if (part && part.needAddress && part.lat != null && part.lng != null) {
                         fallbackList.push({ ref: ref, lat: part.lat, lng: part.lng });
                     }
                 }
                 function rebuildLocationAndFinish() {
                     for (var ri = 0; ri < rowsData.length; ri++) {
-                        var part = rowsData[ri]._locationParts[0];
+                        var parts = rowsData[ri]._locationParts;
+                        var part = parts && parts[0];
                         if (part) {
                             rowsData[ri].Location = (part.display != null && part.display !== "") ? part.display : (part.lat != null && part.lng != null ? U.formatLatLng(part.lat, part.lng) : "");
                         }
@@ -593,14 +598,16 @@
                 var fallbackList = [];
                 for (var fi = 0; fi < coordToRowEntry.length; fi++) {
                     var ref = coordToRowEntry[fi];
-                    var part = rowsData[ref.rowIndex]._locationParts[ref.partIndex];
+                    var parts = rowsData[ref.rowIndex]._locationParts;
+                    var part = parts && parts[ref.partIndex];
                     if (part && part.needAddress && part.lat != null && part.lng != null) {
                         fallbackList.push({ ref: ref, lat: part.lat, lng: part.lng });
                     }
                 }
                 function rebuildLocationAndFinish() {
                     for (var ri = 0; ri < rowsData.length; ri++) {
-                        var part = rowsData[ri]._locationParts[0];
+                        var parts = rowsData[ri]._locationParts;
+                        var part = parts && parts[0];
                         if (part) {
                             rowsData[ri].Location = (part.display != null && part.display !== "") ? part.display : (part.lat != null && part.lng != null ? U.formatLatLng(part.lat, part.lng) : "");
                         }
