@@ -446,37 +446,15 @@
                         locationParts.push({ display: zoneName, durationMs: durationMs });
                     } else {
                         locationParts.push({ needAddress: true, lat: pos.lat, lng: pos.lng, durationMs: durationMs });
-                        coordsFlat.push({ latitude: pos.lat, longitude: pos.lng });
-                        coordToRowEntry.push({ rowIndex: di, partIndex: locationParts.length - 1 });
                     }
                 }
+
+                if (ignitionSeconds === 0) continue;
 
                 var shiftStartMs = dayTrips.length ? new Date(dayTrips[0].start).getTime() : null;
                 var shiftEndMs = dayTrips.length ? new Date(dayTrips[dayTrips.length - 1].stop).getTime() : null;
                 var shiftDurationMs = (shiftStartMs != null && shiftEndMs != null) ? (shiftEndMs - shiftStartMs) : 0;
                 var allowedBreakMin = U.getAllowedBreakMinutes(shiftDurationMs);
-                var breakStopMinutes = 0;
-                var adjustedStopCount = stopCount;
-                var adjustedStoppedMs = totalStoppedMs;
-                if (stops.length > 0) {
-                    var bestIdx = -1;
-                    var bestDiff = Infinity;
-                    for (var bi = 0; bi < stops.length; bi++) {
-                        var durMin = stops[bi].durationMs / (60 * 1000);
-                        if (durMin < allowedBreakMin) continue;
-                        var diff = durMin - allowedBreakMin;
-                        if (diff < bestDiff) {
-                            bestDiff = diff;
-                            bestIdx = bi;
-                        }
-                    }
-                    if (bestIdx >= 0) {
-                        breakStopMinutes = stops[bestIdx].durationMs / (60 * 1000);
-                        adjustedStopCount = stopCount - 1;
-                        var deductionMs = Math.min(stops[bestIdx].durationMs, allowedBreakMin * 60 * 1000);
-                        adjustedStoppedMs = totalStoppedMs - deductionMs;
-                    }
-                }
 
                 function formatStopWithDuration(part) {
                     var loc = (part.display != null) ? part.display : (part.lat != null && part.lng != null ? U.formatLatLng(part.lat, part.lng) : "");
@@ -487,6 +465,14 @@
                 var stopLocationsStr = [];
                 for (var pi = 0; pi < locationParts.length; pi++) {
                     stopLocationsStr.push(formatStopWithDuration(locationParts[pi]));
+                }
+                var rowIdx = rowsData.length;
+                for (var sl2 = 0; sl2 < locationParts.length; sl2++) {
+                    var part = locationParts[sl2];
+                    if (part.needAddress && part.lat != null && part.lng != null) {
+                        coordsFlat.push({ latitude: part.lat, longitude: part.lng });
+                        coordToRowEntry.push({ rowIndex: rowIdx, partIndex: sl2 });
+                    }
                 }
                 rowsData.push({
                     Date: dayKey,
@@ -499,7 +485,6 @@
                     StopLocations: stopLocationsStr.join("; "),
                     TotalStoppedTimeSeconds: totalStoppedMs / 1000,
                     AllowedBreakMinutes: allowedBreakMin,
-                    AdjustedStoppedTimeSeconds: adjustedStoppedMs / 1000,
                     _locationParts: locationParts
                 });
             }
@@ -612,8 +597,7 @@
         { key: "StopCount", label: "Stop Count" },
         { key: "StopLocations", label: "Stop Locations" },
         { key: "TotalStoppedTimeSeconds", label: "Total Stopped Time", format: "duration" },
-        { key: "AllowedBreakMinutes", label: "Allowed Break (min)" },
-        { key: "AdjustedStoppedTimeSeconds", label: "Adjusted Stopped Time", format: "duration" }
+        { key: "AllowedBreakMinutes", label: "Allowed Break (min)" }
     ];
 
     function renderPreview() {
