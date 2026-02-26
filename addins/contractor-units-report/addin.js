@@ -549,7 +549,7 @@
                 }
 
                 /* End time = last ignition-off signal (StatusData DiagnosticIgnitionId) inside home zone for this date.
-                   Ignition-off records often show midnight even when the actual off time is earlier — skip midnight and use trip stop. */
+                   Ignition-off records often return midnight UTC (displays as 19:00 in UTC-5) regardless of actual off time — skip those and use trip stop. */
                 var endTimeInsideHomeZone = null;
                 var dayIgnitionOffRecords = [];
                 for (var isi = 0; isi < ignitionStatus.length; isi++) {
@@ -561,7 +561,7 @@
                     if (isNaN(sdMs) || sdMs < dayStartMs || sdMs > dayEndMs) continue;
                     var ignitionOff = (sd.data == null || sd.data === 0 || sd.data === "0");
                     if (!ignitionOff) continue;
-                    if (sdDate.getHours() === 0 && sdDate.getMinutes() === 0 && sdDate.getSeconds() === 0) continue;
+                    if (sdDate.getUTCHours() === 0 && sdDate.getUTCMinutes() === 0 && sdDate.getUTCSeconds() === 0) continue;
                     dayIgnitionOffRecords.push({ sd: sd, sdMs: sdMs });
                 }
                 dayIgnitionOffRecords.sort(function (a, b) { return b.sdMs - a.sdMs; });
