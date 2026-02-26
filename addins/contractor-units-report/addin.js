@@ -544,6 +544,36 @@
                     }
                 }
 
+                /* End time = last ignition-off signal (StatusData DiagnosticIgnitionId) inside home zone */
+                var endTimeInsideHomeZone = null;
+                for (var isi = ignitionStatus.length - 1; isi >= 0; isi--) {
+                    var sd = ignitionStatus[isi];
+                    var sdMs = new Date(sd.dateTime).getTime();
+                    if (sdMs < dayStartMs || sdMs > dayEndMs) continue;
+                    var ignitionOff = (sd.data == null || sd.data === 0 || sd.data === "0");
+                    if (!ignitionOff) continue;
+                    var posEnd = U.getPositionAtTime(logs, sdMs);
+                    var inZoneB1 = !!(startHomeZone && posEnd && posEnd.lat != null && posEnd.lng != null && U.pointInZone(posEnd.lat, posEnd.lng, startHomeZone));
+                    var nearOpsCentre = !!(posEnd && posEnd.lat != null && posEnd.lng != null && U.isWithinOperationsCentre(posEnd.lat, posEnd.lng));
+                    if (inZoneB1 || nearOpsCentre) {
+                        endTimeInsideHomeZone = sdMs;
+                        break;
+                    }
+                }
+                /* Fallback: last trip stop inside home zone if no StatusData match */
+                if (endTimeInsideHomeZone == null && dayTrips.length > 0) {
+                    for (var ti = dayTrips.length - 1; ti >= 0; ti--) {
+                        var tripStopMs = new Date(dayTrips[ti].stop).getTime();
+                        var posEnd = U.getPositionAtTime(logs, tripStopMs);
+                        var inZoneB1 = !!(startHomeZone && posEnd && posEnd.lat != null && posEnd.lng != null && U.pointInZone(posEnd.lat, posEnd.lng, startHomeZone));
+                        var nearOpsCentre = !!(posEnd && posEnd.lat != null && posEnd.lng != null && U.isWithinOperationsCentre(posEnd.lat, posEnd.lng));
+                        if (inZoneB1 || nearOpsCentre) {
+                            endTimeInsideHomeZone = tripStopMs;
+                            break;
+                        }
+                    }
+                }
+
                 if (ignitionSeconds === 0) continue;
 
                 /* Summary row (first line for this vehicle/day) */
@@ -552,6 +582,7 @@
                     DeviceName: deviceName,
                     // SerialNumber: deviceSerialNumber,
                     StartTime: startTimeInsideHomeZone != null ? formatDateTimeLocal(new Date(startTimeInsideHomeZone)) : "",
+                    EndTime: endTimeInsideHomeZone != null ? formatDateTimeLocal(new Date(endTimeInsideHomeZone)) : "",
                     IgnitionOnTimeSeconds: ignitionSeconds,
                     TimeOutsideHomeZoneSeconds: timeOutsideHomeZoneSeconds,
                     StoppedInsideHomeZoneSeconds: stoppedInsideHomeZoneSeconds,
@@ -592,6 +623,7 @@
                         DeviceName: deviceName,
                         // SerialNumber: deviceSerialNumber,
                         StartTime: "",
+                        EndTime: "",
                         IgnitionOnTimeSeconds: null,
                         TimeOutsideHomeZoneSeconds: null,
                         StoppedInsideHomeZoneSeconds: null,
@@ -713,6 +745,7 @@
         { key: "DeviceName", label: "Device Name" },
         // { key: "SerialNumber", label: "Geotab Serial\nNumber" },
         { key: "StartTime", label: "Start Time" },
+        { key: "EndTime", label: "End Time" },
         { key: "IgnitionOnTimeSeconds", label: "Ignition On\nTime", format: "duration" },
         { key: "TimeOutsideHomeZoneSeconds", label: "Time Outside\nHome Zone", format: "duration" },
         { key: "StoppedInsideHomeZoneSeconds", label: "Stopped Inside\nHome Zone", format: "duration" },
