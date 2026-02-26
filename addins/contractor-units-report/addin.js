@@ -409,6 +409,7 @@
                 var idleInZoneSeconds = 0;
                 var idleOutZoneSeconds = 0;
                 var timeOutsideHomeZoneSeconds = 0;
+                var stoppedInsideHomeZoneSeconds = 0;
                 /* Idling = ignition on and no movement (Trip.idlingDuration); split in-zone vs out-of-zone by position at trip end vs Start Home Zone */
                 for (var t = 0; t < dayTrips.length; t++) {
                     var trip = dayTrips[t];
@@ -437,7 +438,11 @@
                     var gapMs = gapEnd - gapStart;
                     if (gapMs < STOP_THRESHOLD_MS) continue;
                     var pos = U.getPositionAtTime(logs, gapStart);
-                    if (startHomeZone && pos && pos.lat != null && pos.lng != null && U.pointInZone(pos.lat, pos.lng, startHomeZone)) continue;
+                    var inHomeForStop = startHomeZone && pos && pos.lat != null && pos.lng != null && U.pointInZone(pos.lat, pos.lng, startHomeZone);
+                    if (inHomeForStop) {
+                        stoppedInsideHomeZoneSeconds += gapMs / 1000;
+                        continue;
+                    }
                     stops.push({ durationMs: gapMs, position: pos });
                 }
                 var stopCount = stops.length;
@@ -490,8 +495,7 @@
                     SerialNumber: deviceSerialNumber,
                     IgnitionOnTimeSeconds: ignitionSeconds,
                     TimeOutsideHomeZoneSeconds: timeOutsideHomeZoneSeconds,
-                    IdleInZoneSeconds: idleInZoneSeconds,
-                    IdleOutZoneSeconds: idleOutZoneSeconds,
+                    StoppedInsideHomeZoneSeconds: stoppedInsideHomeZoneSeconds,
                     StopCount: stopCount,
                     StopLocations: stopLocationsStr.join("; "),
                     TotalStoppedTimeSeconds: totalStoppedMs / 1000,
@@ -623,8 +627,7 @@
         { key: "SerialNumber", label: "Geotab Serial Number" },
         { key: "IgnitionOnTimeSeconds", label: "Ignition On Time", format: "duration" },
         { key: "TimeOutsideHomeZoneSeconds", label: "Time Outside Home Zone", format: "duration" },
-        { key: "IdleInZoneSeconds", label: "Idle In Zone", format: "duration" },
-        { key: "IdleOutZoneSeconds", label: "Idle Out Zone", format: "duration" },
+        { key: "StoppedInsideHomeZoneSeconds", label: "Stopped Inside Home Zone", format: "duration" },
         { key: "StopCount", label: "Stop Count" },
         { key: "StopLocations", label: "Stop Locations" },
         { key: "TotalStoppedTimeSeconds", label: "Total Stopped Time", format: "duration" },
