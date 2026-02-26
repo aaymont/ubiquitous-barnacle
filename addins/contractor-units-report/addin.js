@@ -9,7 +9,7 @@
     var HOME_ZONE_ID = "b1";
     var PREVIEW_ROWS = 200;
     var STOP_THRESHOLD_MS = 10 * 60 * 1000;
-    var ADDRESS_LOOKUP_ENABLED = false;
+    var ADDRESS_LOOKUP_ENABLED = true;
 
     var apiRef = null;
     var reportRows = [];
@@ -484,7 +484,7 @@
                     isSummaryRow: true
                 });
 
-                /* One detail row per stop — inside Operations Centre (b1) → "Operations Centre"; outside → coordinates */
+                /* One detail row per stop — inside Operations Centre (b1) → "Operations Centre"; outside → address lookup (or coordinates) */
                 for (var si = 0; si < stops.length; si++) {
                     var stop = stops[si];
                     var pos = stop.position;
@@ -492,13 +492,17 @@
                     if (stop.inHomeZone) {
                         locationPart = { display: "Operations Centre" };
                     } else if (pos && pos.lat != null && pos.lng != null) {
-                        locationPart = { display: U.formatLatLng(pos.lat, pos.lng) };
+                        locationPart = { needAddress: true, lat: pos.lat, lng: pos.lng };
                     } else {
                         locationPart = { display: "" };
                     }
                     var locationParts = [locationPart];
-                    var locationDisplay = (locationPart.display != null && locationPart.display !== "") ? locationPart.display : "";
+                    var locationDisplay = (locationPart.display != null && locationPart.display !== "") ? locationPart.display : (locationPart.lat != null && locationPart.lng != null ? U.formatLatLng(locationPart.lat, locationPart.lng) : "");
                     var rowIdx = rowsData.length;
+                    if (locationPart.needAddress && locationPart.lat != null && locationPart.lng != null) {
+                        coordsFlat.push({ latitude: locationPart.lat, longitude: locationPart.lng });
+                        coordToRowEntry.push({ rowIndex: rowIdx, partIndex: 0 });
+                    }
                     var stopStartDate = new Date(stop.gapStart);
                     var stopEndDate = new Date(stop.gapEnd);
                     rowsData.push({
@@ -624,18 +628,18 @@
     var COLUMNS = [
         { key: "Date", label: "Date" },
         { key: "DeviceName", label: "Device Name" },
-        { key: "SerialNumber", label: "Geotab Serial Number" },
-        { key: "IgnitionOnTimeSeconds", label: "Ignition On Time", format: "duration" },
-        { key: "TimeOutsideHomeZoneSeconds", label: "Time Outside Home Zone", format: "duration" },
-        { key: "StoppedInsideHomeZoneSeconds", label: "Stopped Inside Home Zone", format: "duration" },
+        { key: "SerialNumber", label: "Geotab Serial\nNumber" },
+        { key: "IgnitionOnTimeSeconds", label: "Ignition On\nTime", format: "duration" },
+        { key: "TimeOutsideHomeZoneSeconds", label: "Time Outside\nHome Zone", format: "duration" },
+        { key: "StoppedInsideHomeZoneSeconds", label: "Stopped Inside\nHome Zone", format: "duration" },
         { key: "StopCount", label: "Stop Count" },
-        { key: "TotalStoppedTimeSeconds", label: "Total Stopped Time", format: "duration" },
+        { key: "TotalStoppedTimeSeconds", label: "Total Stopped\nTime", format: "duration" },
         { key: "AllowedBreakMinutes", label: "Allowed Break (min)" },
         { key: "StopStart", label: "Stop Start" },
         { key: "StopEnd", label: "Stop End" },
         { key: "DurationSeconds", label: "Duration", format: "duration" },
         { key: "Location", label: "Location" },
-        { key: "InHomeZone", label: "In Home Zone" }
+        { key: "InHomeZone", label: "In Home\nZone" }
     ];
 
     function renderPreview() {
