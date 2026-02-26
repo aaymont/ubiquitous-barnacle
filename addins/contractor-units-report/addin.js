@@ -348,11 +348,25 @@
             ["Get", {
                 typeName: "LogRecord",
                 search: { deviceSearch: { id: deviceId }, fromDate: fromStr, toDate: toStr }
+            }],
+            ["Get", {
+                typeName: "StatusData",
+                search: {
+                    deviceSearch: { id: deviceId },
+                    diagnosticSearch: { id: "DiagnosticIgnitionId" },
+                    fromDate: fromStr,
+                    toDate: toStr
+                }
             }]
         ], function (results) {
             var trips = (results && results[0]) ? results[0] : [];
             var logs = (results && results[1]) ? results[1] : [];
+            var ignitionStatus = (results && results[2]) ? results[2] : [];
             if (trips && !trips.sort) trips = [];
+            if (ignitionStatus && !ignitionStatus.sort) ignitionStatus = [];
+            ignitionStatus.sort(function (a, b) {
+                return new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime();
+            });
             trips.sort(function (a, b) {
                 return new Date(a.start).getTime() - new Date(b.start).getTime();
             });
@@ -416,8 +430,46 @@
                     }
                 }
 
-                /* Daily aggregates for summary row */
+                /* Ignition on time from StatusData (DiagnosticIgnitionId) — sum segments when data=1 */
                 var ignitionSeconds = 0;
+                var dayIgnitionRecords = [];
+                for (var isi = 0; isi < ignitionStatus.length; isi++) {
+                    var sd = ignitionStatus[isi];
+                    var sdMs = new Date(sd.dateTime).getTime();
+                    if (sdMs >= dayStartMs && sdMs <= dayEndMs) dayIgnitionRecords.push(sd);
+                }
+                var prevForDay = null;
+                for (var isi = 0; isi < ignitionStatus.length; isi++) {
+                    var sd = ignitionStatus[isi];
+                    var sdMs = new Date(sd.dateTime).getTime();
+                    if (sdMs < dayStartMs) prevForDay = sd;
+                    else break;
+                }
+                var orderedForDay = (prevForDay ? [prevForDay] : []).concat(dayIgnitionRecords);
+                for (var i = 0; i < orderedForDay.length; i++) {
+                    var sd = orderedForDay[i];
+                    var sdMs = new Date(sd.dateTime).getTime();
+                    var ignitionOn = (sd.data != null && sd.data !== 0 && sd.data !== "0");
+                    if (!ignitionOn) continue;
+                    var segStart = Math.max(sdMs, dayStartMs);
+                    var segEnd = (i + 1 < orderedForDay.length)
+                        ? new Date(orderedForDay[i + 1].dateTime).getTime()
+                        : (dayEndMs + 1);
+                    segEnd = Math.min(segEnd, dayEndMs + 1);
+                    ignitionSeconds += Math.max(0, (segEnd - segStart) / 1000);
+                }
+                /* Fallback: Trip-based ignition if no StatusData for the day */
+                if (ignitionSeconds === 0 && dayTrips.length > 0) {
+                    for (var t = 0; t < dayTrips.length; t++) {
+                        var trip = dayTrips[t];
+                        var driveSec = U.getTotalSeconds(trip.drivingDuration);
+                        var idleSec = U.getTotalSeconds(trip.idlingDuration);
+                        if (driveSec === 0 && idleSec === 0 && trip.start && trip.stop) {
+                            driveSec = (new Date(trip.stop).getTime() - new Date(trip.start).getTime()) / 1000;
+                        }
+                        ignitionSeconds += driveSec + idleSec;
+                    }
+                }
                 var timeOutsideHomeZoneSeconds = 0;
                 var stoppedInsideHomeZoneSeconds = 0;
                 for (var t = 0; t < dayTrips.length; t++) {
@@ -428,7 +480,6 @@
                         driveSec = (new Date(trip.stop).getTime() - new Date(trip.start).getTime()) / 1000;
                     }
                     var tripDurationSec = driveSec + idleSec;
-                    ignitionSeconds += tripDurationSec;
                     var stopMs = new Date(trip.stop).getTime();
                     var posEnd = U.getPositionAtTime(logs, stopMs);
                     if (!startHomeZone || !posEnd || !U.pointInZone(posEnd.lat, posEnd.lng, startHomeZone)) {
@@ -463,16 +514,33 @@
                 var shiftDurationMs = (shiftStartMs != null && shiftEndMs != null) ? (shiftEndMs - shiftStartMs) : 0;
                 var allowedBreakMin = U.getAllowedBreakMinutes(shiftDurationMs);
 
-                /* Start time = first ignition on (trip start) inside home zone */
+                /* Start time = first ignition-on signal (StatusData DiagnosticIgnitionId) inside home zone */
                 var startTimeInsideHomeZone = null;
-                for (var ti = 0; ti < dayTrips.length; ti++) {
-                    var tripStartMs = new Date(dayTrips[ti].start).getTime();
-                    var posStart = U.getPositionAtTime(logs, tripStartMs);
+                for (var isi = 0; isi < ignitionStatus.length; isi++) {
+                    var sd = ignitionStatus[isi];
+                    var sdMs = new Date(sd.dateTime).getTime();
+                    if (sdMs < dayStartMs || sdMs > dayEndMs) continue;
+                    var ignitionOn = (sd.data != null && sd.data !== 0 && sd.data !== "0");
+                    if (!ignitionOn) continue;
+                    var posStart = U.getPositionAtTime(logs, sdMs);
                     var inZoneB1 = !!(startHomeZone && posStart && posStart.lat != null && posStart.lng != null && U.pointInZone(posStart.lat, posStart.lng, startHomeZone));
                     var nearOpsCentre = !!(posStart && posStart.lat != null && posStart.lng != null && U.isWithinOperationsCentre(posStart.lat, posStart.lng));
                     if (inZoneB1 || nearOpsCentre) {
-                        startTimeInsideHomeZone = tripStartMs;
+                        startTimeInsideHomeZone = sdMs;
                         break;
+                    }
+                }
+                /* Fallback: first trip start inside home zone if no StatusData match */
+                if (startTimeInsideHomeZone == null) {
+                    for (var ti = 0; ti < dayTrips.length; ti++) {
+                        var tripStartMs = new Date(dayTrips[ti].start).getTime();
+                        var posStart = U.getPositionAtTime(logs, tripStartMs);
+                        var inZoneB1 = !!(startHomeZone && posStart && posStart.lat != null && posStart.lng != null && U.pointInZone(posStart.lat, posStart.lng, startHomeZone));
+                        var nearOpsCentre = !!(posStart && posStart.lat != null && posStart.lng != null && U.isWithinOperationsCentre(posStart.lat, posStart.lng));
+                        if (inZoneB1 || nearOpsCentre) {
+                            startTimeInsideHomeZone = tripStartMs;
+                            break;
+                        }
                     }
                 }
 
@@ -636,7 +704,7 @@
         }, function (err) {
             hideProgress();
             setGenerateEnabled(true);
-            showMessage("Error loading trips or log records for " + (device.name || deviceId) + ". Check permissions (Trips, LogRecord).", true, err && (err.message || JSON.stringify(err)));
+            showMessage("Error loading trips, log records, or ignition status for " + (device.name || deviceId) + ". Check permissions (Trips, LogRecord, StatusData).", true, err && (err.message || JSON.stringify(err)));
         });
     }
 
