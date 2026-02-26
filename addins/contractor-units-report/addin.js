@@ -387,8 +387,12 @@
 
             for (var di = 0; di < dayKeys.length; di++) {
                 var dayKey = dayKeys[di];
-                var dayStart = new Date(dayKey + "T00:00:00");
-                var dayEnd = new Date(dayKey + "T23:59:59.999");
+                var parts = dayKey.split("-");
+                var year = parseInt(parts[0], 10);
+                var month = parseInt(parts[1], 10) - 1;
+                var day = parseInt(parts[2], 10);
+                var dayStart = new Date(year, month, day, 0, 0, 0, 0);
+                var dayEnd = new Date(year, month, day, 23, 59, 59, 999);
                 var dayStartMs = dayStart.getTime();
                 var dayEndMs = dayEnd.getTime();
 
@@ -544,19 +548,28 @@
                     }
                 }
 
-                /* End time = last ignition-off signal (StatusData DiagnosticIgnitionId) inside home zone */
+                /* End time = last ignition-off signal (StatusData DiagnosticIgnitionId) inside home zone for this date */
                 var endTimeInsideHomeZone = null;
-                for (var isi = ignitionStatus.length - 1; isi >= 0; isi--) {
+                var dayIgnitionOffRecords = [];
+                for (var isi = 0; isi < ignitionStatus.length; isi++) {
                     var sd = ignitionStatus[isi];
-                    var sdMs = new Date(sd.dateTime).getTime();
-                    if (sdMs < dayStartMs || sdMs > dayEndMs) continue;
+                    var dtStr = (sd && sd.dateTime) ? String(sd.dateTime) : "";
+                    if (dtStr.indexOf("T") < 0) continue;
+                    var sdDate = new Date(sd.dateTime);
+                    var sdMs = sdDate.getTime();
+                    if (isNaN(sdMs) || sdMs < dayStartMs || sdMs > dayEndMs) continue;
                     var ignitionOff = (sd.data == null || sd.data === 0 || sd.data === "0");
                     if (!ignitionOff) continue;
-                    var posEnd = U.getPositionAtTime(logs, sdMs);
+                    dayIgnitionOffRecords.push({ sd: sd, sdMs: sdMs });
+                }
+                dayIgnitionOffRecords.sort(function (a, b) { return b.sdMs - a.sdMs; });
+                for (var i = 0; i < dayIgnitionOffRecords.length; i++) {
+                    var rec = dayIgnitionOffRecords[i];
+                    var posEnd = U.getPositionAtTime(logs, rec.sdMs);
                     var inZoneB1 = !!(startHomeZone && posEnd && posEnd.lat != null && posEnd.lng != null && U.pointInZone(posEnd.lat, posEnd.lng, startHomeZone));
                     var nearOpsCentre = !!(posEnd && posEnd.lat != null && posEnd.lng != null && U.isWithinOperationsCentre(posEnd.lat, posEnd.lng));
                     if (inZoneB1 || nearOpsCentre) {
-                        endTimeInsideHomeZone = sdMs;
+                        endTimeInsideHomeZone = rec.sdMs;
                         break;
                     }
                 }
