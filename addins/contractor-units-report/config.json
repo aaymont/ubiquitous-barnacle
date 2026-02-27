@@ -1,10 +1,10 @@
 {
   "name": "Contractor Units Activity Report",
   "supportEmail": "https://github.com/aaymont/ubiquitous-barnacle",
-  "version": "1.0.32",
+  "version": "1.0.33",
   "items": [
     {
-      "url": "https://aaymont.github.io/ubiquitous-barnacle/addins/contractor-units-report/?v=1.0.32",
+      "url": "https://aaymont.github.io/ubiquitous-barnacle/addins/contractor-units-report/?v=1.0.33",
       "path": "ProductivityLink/",
       "menuName": { "en": "Contractor Units Activity Report" }
     }

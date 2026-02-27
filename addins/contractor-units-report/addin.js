@@ -549,7 +549,8 @@
                 }
 
                 /* End time = last ignition-off signal (StatusData DiagnosticIgnitionId) for this date, regardless of location.
-                   Ignition-off records often return midnight UTC (displays as 19:00 in UTC-5) regardless of actual off time — skip those and use trip stop. */
+                   Ignition-off records often return midnight UTC (displays as 19:00 in UTC-5) regardless of actual off time — skip those and use trip stop.
+                   If ignition remains ON past midnight, use 23:59:59 as end time. */
                 var endTimeInsideHomeZone = null;
                 var dayIgnitionOffRecords = [];
                 for (var isi = 0; isi < ignitionStatus.length; isi++) {
@@ -572,6 +573,22 @@
                 if (endTimeInsideHomeZone == null && dayTrips.length > 0) {
                     var tripStopMs = new Date(dayTrips[dayTrips.length - 1].stop).getTime();
                     endTimeInsideHomeZone = tripStopMs;
+                }
+                /* Check if ignition is still ON at end of day — if so, use 23:59:59 as end time */
+                if (endTimeInsideHomeZone == null || endTimeInsideHomeZone < dayStartMs) {
+                    var lastIgnitionState = null;
+                    for (var isi = 0; isi < ignitionStatus.length; isi++) {
+                        var sd = ignitionStatus[isi];
+                        var sdMs = new Date(sd.dateTime).getTime();
+                        if (sdMs <= dayEndMs) lastIgnitionState = sd;
+                        else break;
+                    }
+                    if (lastIgnitionState) {
+                        var ignitionStillOn = (lastIgnitionState.data != null && lastIgnitionState.data !== 0 && lastIgnitionState.data !== "0");
+                        if (ignitionStillOn) {
+                            endTimeInsideHomeZone = dayEndMs;
+                        }
+                    }
                 }
 
                 if (ignitionSeconds === 0) continue;
