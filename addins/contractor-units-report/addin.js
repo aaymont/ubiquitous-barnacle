@@ -548,7 +548,7 @@
                     }
                 }
 
-                /* End time = last ignition-off signal (StatusData DiagnosticIgnitionId) inside home zone for this date.
+                /* End time = last ignition-off signal (StatusData DiagnosticIgnitionId) for this date, regardless of location.
                    Ignition-off records often return midnight UTC (displays as 19:00 in UTC-5) regardless of actual off time — skip those and use trip stop. */
                 var endTimeInsideHomeZone = null;
                 var dayIgnitionOffRecords = [];
@@ -565,28 +565,13 @@
                     dayIgnitionOffRecords.push({ sd: sd, sdMs: sdMs });
                 }
                 dayIgnitionOffRecords.sort(function (a, b) { return b.sdMs - a.sdMs; });
-                for (var i = 0; i < dayIgnitionOffRecords.length; i++) {
-                    var rec = dayIgnitionOffRecords[i];
-                    var posEnd = U.getPositionAtTime(logs, rec.sdMs);
-                    var inZoneB1 = !!(startHomeZone && posEnd && posEnd.lat != null && posEnd.lng != null && U.pointInZone(posEnd.lat, posEnd.lng, startHomeZone));
-                    var nearOpsCentre = !!(posEnd && posEnd.lat != null && posEnd.lng != null && U.isWithinOperationsCentre(posEnd.lat, posEnd.lng));
-                    if (inZoneB1 || nearOpsCentre) {
-                        endTimeInsideHomeZone = rec.sdMs;
-                        break;
-                    }
+                if (dayIgnitionOffRecords.length > 0) {
+                    endTimeInsideHomeZone = dayIgnitionOffRecords[0].sdMs;
                 }
-                /* Fallback: last trip stop inside home zone (ignition-off StatusData often shows midnight; trip stop has actual time) */
+                /* Fallback: last trip stop for the day (ignition-off StatusData often shows midnight; trip stop has actual time) */
                 if (endTimeInsideHomeZone == null && dayTrips.length > 0) {
-                    for (var ti = dayTrips.length - 1; ti >= 0; ti--) {
-                        var tripStopMs = new Date(dayTrips[ti].stop).getTime();
-                        var posEnd = U.getPositionAtTime(logs, tripStopMs);
-                        var inZoneB1 = !!(startHomeZone && posEnd && posEnd.lat != null && posEnd.lng != null && U.pointInZone(posEnd.lat, posEnd.lng, startHomeZone));
-                        var nearOpsCentre = !!(posEnd && posEnd.lat != null && posEnd.lng != null && U.isWithinOperationsCentre(posEnd.lat, posEnd.lng));
-                        if (inZoneB1 || nearOpsCentre) {
-                            endTimeInsideHomeZone = tripStopMs;
-                            break;
-                        }
-                    }
+                    var tripStopMs = new Date(dayTrips[dayTrips.length - 1].stop).getTime();
+                    endTimeInsideHomeZone = tripStopMs;
                 }
 
                 if (ignitionSeconds === 0) continue;
