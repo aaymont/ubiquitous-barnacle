@@ -549,9 +549,10 @@
                 }
 
                 /* End time = last ignition-off signal (StatusData DiagnosticIgnitionId) for this date, regardless of location.
-                   Ignition-off records often return midnight UTC (displays as 19:00 in UTC-5) regardless of actual off time — skip those and use trip stop.
                    If ignition remains ON past midnight, use 23:59:59 as end time. */
                 var endTimeInsideHomeZone = null;
+                
+                /* First, find the last ignition-off signal within the day */
                 var dayIgnitionOffRecords = [];
                 for (var isi = 0; isi < ignitionStatus.length; isi++) {
                     var sd = ignitionStatus[isi];
@@ -569,19 +570,25 @@
                 if (dayIgnitionOffRecords.length > 0) {
                     endTimeInsideHomeZone = dayIgnitionOffRecords[0].sdMs;
                 }
-                /* Fallback: last trip stop for the day (ignition-off StatusData often shows midnight; trip stop has actual time) */
-                if (endTimeInsideHomeZone == null && dayTrips.length > 0) {
-                    var tripStopMs = new Date(dayTrips[dayTrips.length - 1].stop).getTime();
-                    endTimeInsideHomeZone = tripStopMs;
+                
+                /* Compare with last trip stop time - use whichever is later */
+                if (dayTrips.length > 0) {
+                    var lastTripStopMs = new Date(dayTrips[dayTrips.length - 1].stop).getTime();
+                    if (lastTripStopMs >= dayStartMs && lastTripStopMs <= dayEndMs) {
+                        if (endTimeInsideHomeZone == null || lastTripStopMs > endTimeInsideHomeZone) {
+                            endTimeInsideHomeZone = lastTripStopMs;
+                        }
+                    }
                 }
+                
                 /* Check if ignition is still ON at end of day — if so, use 23:59:59 as end time */
-                if (endTimeInsideHomeZone == null || endTimeInsideHomeZone < dayStartMs) {
+                if (endTimeInsideHomeZone != null && endTimeInsideHomeZone < dayEndMs) {
                     var lastIgnitionState = null;
                     for (var isi = 0; isi < ignitionStatus.length; isi++) {
                         var sd = ignitionStatus[isi];
                         var sdMs = new Date(sd.dateTime).getTime();
-                        if (sdMs <= dayEndMs) lastIgnitionState = sd;
-                        else break;
+                        if (sdMs > dayEndMs) break;
+                        if (sdMs >= endTimeInsideHomeZone) lastIgnitionState = sd;
                     }
                     if (lastIgnitionState) {
                         var ignitionStillOn = (lastIgnitionState.data != null && lastIgnitionState.data !== 0 && lastIgnitionState.data !== "0");
