@@ -548,40 +548,25 @@
                     }
                 }
 
-                /* End time = last ignition-off signal (StatusData DiagnosticIgnitionId) for this date, regardless of location.
-                   If ignition remains ON past midnight, use 23:59:59 as end time. */
+                /* End time = last stop end time, or last trip stop time if no stops >= 10 min.
+                   If ignition remains ON past the last activity, use 23:59:59 as end time. */
                 var endTimeInsideHomeZone = null;
                 
-                /* First, find the last ignition-off signal within the day */
-                var dayIgnitionOffRecords = [];
-                for (var isi = 0; isi < ignitionStatus.length; isi++) {
-                    var sd = ignitionStatus[isi];
-                    var dtStr = (sd && sd.dateTime) ? String(sd.dateTime) : "";
-                    if (dtStr.indexOf("T") < 0) continue;
-                    var sdDate = new Date(sd.dateTime);
-                    var sdMs = sdDate.getTime();
-                    if (isNaN(sdMs) || sdMs < dayStartMs || sdMs > dayEndMs) continue;
-                    var ignitionOff = (sd.data == null || sd.data === 0 || sd.data === "0");
-                    if (!ignitionOff) continue;
-                    if (sdDate.getUTCHours() === 0 && sdDate.getUTCMinutes() === 0 && sdDate.getUTCSeconds() === 0) continue;
-                    dayIgnitionOffRecords.push({ sd: sd, sdMs: sdMs });
-                }
-                dayIgnitionOffRecords.sort(function (a, b) { return b.sdMs - a.sdMs; });
-                if (dayIgnitionOffRecords.length > 0) {
-                    endTimeInsideHomeZone = dayIgnitionOffRecords[0].sdMs;
+                /* Use the last stop end time if we have stops */
+                if (stops.length > 0) {
+                    var lastStopEnd = stops[stops.length - 1].gapEnd;
+                    endTimeInsideHomeZone = lastStopEnd;
                 }
                 
-                /* Compare with last trip stop time - use whichever is later */
-                if (dayTrips.length > 0) {
+                /* If no stops (or stops list is empty), use last trip stop time */
+                if (endTimeInsideHomeZone == null && dayTrips.length > 0) {
                     var lastTripStopMs = new Date(dayTrips[dayTrips.length - 1].stop).getTime();
                     if (lastTripStopMs >= dayStartMs && lastTripStopMs <= dayEndMs) {
-                        if (endTimeInsideHomeZone == null || lastTripStopMs > endTimeInsideHomeZone) {
-                            endTimeInsideHomeZone = lastTripStopMs;
-                        }
+                        endTimeInsideHomeZone = lastTripStopMs;
                     }
                 }
                 
-                /* Check if ignition is still ON at end of day — if so, use 23:59:59 as end time */
+                /* Check if ignition is still ON after the last activity — if so, use 23:59:59 as end time */
                 if (endTimeInsideHomeZone != null && endTimeInsideHomeZone < dayEndMs) {
                     var lastIgnitionState = null;
                     for (var isi = 0; isi < ignitionStatus.length; isi++) {
@@ -594,6 +579,19 @@
                         var ignitionStillOn = (lastIgnitionState.data != null && lastIgnitionState.data !== 0 && lastIgnitionState.data !== "0");
                         if (ignitionStillOn) {
                             endTimeInsideHomeZone = dayEndMs;
+                        }
+                    }
+                } else if (endTimeInsideHomeZone == null) {
+                    /* No trips or stops found, but check if ignition was on during the day */
+                    for (var isi = 0; isi < ignitionStatus.length; isi++) {
+                        var sd = ignitionStatus[isi];
+                        var sdMs = new Date(sd.dateTime).getTime();
+                        if (sdMs >= dayStartMs && sdMs <= dayEndMs) {
+                            var ignitionOn = (sd.data != null && sd.data !== 0 && sd.data !== "0");
+                            if (ignitionOn) {
+                                endTimeInsideHomeZone = dayEndMs;
+                                break;
+                            }
                         }
                     }
                 }
