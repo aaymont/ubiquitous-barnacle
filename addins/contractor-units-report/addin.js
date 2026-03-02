@@ -602,15 +602,13 @@
                     shiftTimeSeconds = Math.max(0, spanSeconds - stoppedOutsideSeconds + breakCredit);
                 }
 
-                /* Trip summary data from Geotab trip history */
+                /* Trip data from Geotab trip history: first trip start, last trip end, total trip duration */
                 var tripStartTime = null;
                 var tripEndTime = null;
                 var tripDurationSeconds = 0;
                 if (dayTrips.length > 0) {
-                    var firstTrip = dayTrips[0];
-                    var lastTrip = dayTrips[dayTrips.length - 1];
-                    tripStartTime = formatDateTimeLocal(new Date(firstTrip.start));
-                    tripEndTime = formatDateTimeLocal(new Date(lastTrip.stop));
+                    tripStartTime = formatDateTimeLocal(new Date(dayTrips[0].start));
+                    tripEndTime = formatDateTimeLocal(new Date(dayTrips[dayTrips.length - 1].stop));
                     for (var t = 0; t < dayTrips.length; t++) {
                         var trip = dayTrips[t];
                         var driveSec = U.getTotalSeconds(trip.drivingDuration);
