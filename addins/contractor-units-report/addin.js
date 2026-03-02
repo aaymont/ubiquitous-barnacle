@@ -518,7 +518,7 @@
                 var shiftDurationMs = (shiftStartMs != null && shiftEndMs != null) ? (shiftEndMs - shiftStartMs) : 0;
                 var allowedBreakMin = U.getAllowedBreakMinutes(shiftDurationMs);
 
-                /* Start time = first ignition-on signal (StatusData DiagnosticIgnitionId) inside home zone */
+                /* Start time = first ignition-on signal (StatusData DiagnosticIgnitionId) for the day, regardless of location */
                 var startTimeInsideHomeZone = null;
                 for (var isi = 0; isi < ignitionStatus.length; isi++) {
                     var sd = ignitionStatus[isi];
@@ -526,25 +526,14 @@
                     if (sdMs < dayStartMs || sdMs > dayEndMs) continue;
                     var ignitionOn = (sd.data != null && sd.data !== 0 && sd.data !== "0");
                     if (!ignitionOn) continue;
-                    var posStart = U.getPositionAtTime(logs, sdMs);
-                    var inZoneB1 = !!(startHomeZone && posStart && posStart.lat != null && posStart.lng != null && U.pointInZone(posStart.lat, posStart.lng, startHomeZone));
-                    var nearOpsCentre = !!(posStart && posStart.lat != null && posStart.lng != null && U.isWithinOperationsCentre(posStart.lat, posStart.lng));
-                    if (inZoneB1 || nearOpsCentre) {
-                        startTimeInsideHomeZone = sdMs;
-                        break;
-                    }
+                    startTimeInsideHomeZone = sdMs;
+                    break;
                 }
-                /* Fallback: first trip start inside home zone if no StatusData match */
-                if (startTimeInsideHomeZone == null) {
-                    for (var ti = 0; ti < dayTrips.length; ti++) {
-                        var tripStartMs = new Date(dayTrips[ti].start).getTime();
-                        var posStart = U.getPositionAtTime(logs, tripStartMs);
-                        var inZoneB1 = !!(startHomeZone && posStart && posStart.lat != null && posStart.lng != null && U.pointInZone(posStart.lat, posStart.lng, startHomeZone));
-                        var nearOpsCentre = !!(posStart && posStart.lat != null && posStart.lng != null && U.isWithinOperationsCentre(posStart.lat, posStart.lng));
-                        if (inZoneB1 || nearOpsCentre) {
-                            startTimeInsideHomeZone = tripStartMs;
-                            break;
-                        }
+                /* Fallback: first trip start if no StatusData match */
+                if (startTimeInsideHomeZone == null && dayTrips.length > 0) {
+                    var firstTripStartMs = new Date(dayTrips[0].start).getTime();
+                    if (firstTripStartMs >= dayStartMs && firstTripStartMs <= dayEndMs) {
+                        startTimeInsideHomeZone = firstTripStartMs;
                     }
                 }
 
