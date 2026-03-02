@@ -7,8 +7,36 @@ MyGeotab Add-In that generates a **Contractor Units Activity Report** for the gr
 - **Timeframe**: "This month", "Last month", or custom date range.
 - **Scope**: Only devices in group **Contractor Units** (b27A5).
 - **Home zones**: Uses zones whose ZoneType is the built-in **Home** type for "yard" / Start Home Zone logic.
-- **Metrics**: Ignition on time, idling in/out of Start Home Zone, stops > 10 minutes with **street address** locations (outside home) via MyGeotab GetAddresses, break-adjusted stop count and stopped time.
+- **Metrics**: Ignition on time, time outside home zone, stops > 10 minutes with **street address** locations via MyGeotab GetAddresses, break-adjusted shift time.
 - **Excel export**: One worksheet, frozen header row, column widths, duration formatting, filename `Contractor_Units_Activity_Report_YYYYMMDD-YYYYMMDD.xlsx`.
+
+## Shift Time Calculation Logic (v1.0.37)
+
+### Start Time
+- **First ignition-on signal** for the day (StatusData DiagnosticIgnitionId), regardless of location
+- Filters out midnight UTC timestamps (`00:00:00.000 UTC`) as these are placeholder values
+- Fallback: First trip start time if no valid ignition-on signal found
+
+### End Time
+- **Last stop end time** from stops array (gaps ≥ 10 minutes between trips)
+- If no stops, uses last trip stop time
+- If ignition is still ON after the last activity, sets end time to **23:59:59** (end of day)
+- Filters out midnight UTC timestamps for ignition-off signals
+
+### Shift Time Formula
+```
+Shift Time = (End Time - Start Time) - Total Stopped Time + min(Allowed Break, Total Stopped Time)
+```
+
+Where:
+- **Allowed Break** = 15 min (< 4h shift), 30 min (4-8h shift), or 45 min (≥ 8h shift)
+- **Total Stopped Time** = Sum of all stops ≥ 10 minutes outside home zone
+
+### Handling Midnight Crossover
+If the vehicle's ignition remains ON past midnight (next ignition-off is the following day):
+- End time is set to **23:59:59** of the current day
+- Shift time is calculated up to midnight
+- The next day's report starts fresh with its own ignition-on signal
 
 ## Setup in MyGeotab
 
@@ -47,12 +75,14 @@ MyGeotab Add-In that generates a **Contractor Units Activity Report** for the gr
 
    Ensure the MyGeotab user opening the add-in has permissions to these entities for the relevant groups.
 
-## Known limitations
+## Known Limitations & Considerations
 
 - **Stop locations**: For stops outside home, the add-in resolves coordinates to street addresses by trying the MyGeotab **GetAddresses** API first. If Geotab returns no address (or the call fails), it falls back to **OpenStreetMap Nominatim** (free, no API key; 1 request per second). If the stop is inside a known zone, the zone name is shown. If both lookups fail, coordinates (Lat,Long) are shown.
 - **Large fleets / long ranges**: All work is done in the browser. Very large date ranges or many devices may cause slow runs or high memory use. Use bounded ranges (e.g. one month) for large fleets.
 - **Group id**: The report is hardcoded to group **b27A5** ("Contractor Units"). To use another group, the add-in code would need to be changed or extended to support a group selector.
 - **Home zone type**: The add-in looks for a ZoneType whose name contains "Home". If your database uses a different name, you may need to create or rename a ZoneType to match.
+- **Midnight UTC timestamps**: Geotab sometimes records ignition events at `00:00:00.000 UTC` as placeholder values. These are filtered out to prevent incorrect start/end times (e.g., showing 19:00 in UTC-5 timezone when the actual event was at a different time).
+- **Shifts crossing midnight**: If a vehicle's ignition remains on past midnight, the current day's end time is set to 23:59:59, and the next day's report starts with its own ignition-on signal.
 
 ## Excel output
 
