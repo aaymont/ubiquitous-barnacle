@@ -813,7 +813,7 @@
         { key: "InHomeZone", label: "In Home\nZone" },
         { key: "ShiftTimeSeconds", label: "Shift Time", format: "duration" },
         { key: "TripStartTime", label: "Trip Start\nTime" },
-        { key: "TripDrivingTimeSeconds", label: "Driving Time", format: "duration" },
+        { key: "TripDurationSeconds", label: "Trip Duration", format: "duration" },
         { key: "TripEndTime", label: "Trip End\nTime" }
     ];
 
