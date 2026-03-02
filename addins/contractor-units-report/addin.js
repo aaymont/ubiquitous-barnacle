@@ -605,14 +605,20 @@
                 /* Trip data from Geotab trip history: first trip start, last trip end, total trip duration */
                 var tripStartTime = null;
                 var tripEndTime = null;
-                var tripDrivingTimeSeconds = 0;
+                var tripDurationSeconds = 0;
                 if (dayTrips.length > 0) {
                     tripStartTime = formatDateTimeLocal(new Date(dayTrips[0].start));
                     tripEndTime = formatDateTimeLocal(new Date(dayTrips[dayTrips.length - 1].stop));
                     for (var t = 0; t < dayTrips.length; t++) {
                         var trip = dayTrips[t];
                         var driveSec = U.getTotalSeconds(trip.drivingDuration);
-                        tripDrivingTimeSeconds += driveSec;
+                        var idleSec = U.getTotalSeconds(trip.idlingDuration);
+                        if (driveSec === 0 && idleSec === 0 && trip.start && trip.stop) {
+                            var tripDuration = (new Date(trip.stop).getTime() - new Date(trip.start).getTime()) / 1000;
+                            tripDurationSeconds += tripDuration;
+                        } else {
+                            tripDurationSeconds += driveSec + idleSec;
+                        }
                     }
                 }
 
@@ -636,7 +642,7 @@
                     InHomeZone: "",
                     ShiftTimeSeconds: shiftTimeSeconds,
                     TripStartTime: tripStartTime || "",
-                    TripDrivingTimeSeconds: tripDrivingTimeSeconds,
+                    TripDurationSeconds: tripDurationSeconds,
                     TripEndTime: tripEndTime || "",
                     isSummaryRow: true
                 });
