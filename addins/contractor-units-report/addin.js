@@ -605,7 +605,7 @@
                 /* Trip summary data from Geotab trip history */
                 var tripStartTime = null;
                 var tripEndTime = null;
-                var tripDurationSeconds = 0;
+                var tripDrivingTimeSeconds = 0;
                 if (dayTrips.length > 0) {
                     var firstTrip = dayTrips[0];
                     var lastTrip = dayTrips[dayTrips.length - 1];
@@ -614,11 +614,7 @@
                     for (var t = 0; t < dayTrips.length; t++) {
                         var trip = dayTrips[t];
                         var driveSec = U.getTotalSeconds(trip.drivingDuration);
-                        var idleSec = U.getTotalSeconds(trip.idlingDuration);
-                        if (driveSec === 0 && idleSec === 0 && trip.start && trip.stop) {
-                            driveSec = (new Date(trip.stop).getTime() - new Date(trip.start).getTime()) / 1000;
-                        }
-                        tripDurationSeconds += driveSec + idleSec;
+                        tripDrivingTimeSeconds += driveSec;
                     }
                 }
 
@@ -642,7 +638,7 @@
                     InHomeZone: "",
                     ShiftTimeSeconds: shiftTimeSeconds,
                     TripStartTime: tripStartTime || "",
-                    TripDurationSeconds: tripDurationSeconds,
+                    TripDrivingTimeSeconds: tripDrivingTimeSeconds,
                     TripEndTime: tripEndTime || "",
                     isSummaryRow: true
                 });
@@ -687,7 +683,7 @@
                         InHomeZone: stop.inHomeZone ? "Yes" : "No",
                         ShiftTimeSeconds: null,
                         TripStartTime: "",
-                        TripDurationSeconds: null,
+                        TripDrivingTimeSeconds: null,
                         TripEndTime: "",
                         isSummaryRow: false,
                         _locationParts: locationParts
@@ -813,7 +809,7 @@
         { key: "InHomeZone", label: "In Home\nZone" },
         { key: "ShiftTimeSeconds", label: "Shift Time", format: "duration" },
         { key: "TripStartTime", label: "Trip Start\nTime" },
-        { key: "TripDurationSeconds", label: "Trip Duration", format: "duration" },
+        { key: "TripDrivingTimeSeconds", label: "Driving Time", format: "duration" },
         { key: "TripEndTime", label: "Trip End\nTime" }
     ];
 
