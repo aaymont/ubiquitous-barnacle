@@ -518,18 +518,23 @@
                 var shiftDurationMs = (shiftStartMs != null && shiftEndMs != null) ? (shiftEndMs - shiftStartMs) : 0;
                 var allowedBreakMin = U.getAllowedBreakMinutes(shiftDurationMs);
 
-                /* Start time = first ignition-on signal (StatusData DiagnosticIgnitionId) for the day, regardless of location */
+                /* Start time = first ignition-on signal (StatusData DiagnosticIgnitionId) for the day, regardless of location.
+                   Skip midnight UTC timestamps (00:00:00.000 UTC) as these are often placeholder values, not actual ignition times. */
                 var startTimeInsideHomeZone = null;
                 for (var isi = 0; isi < ignitionStatus.length; isi++) {
                     var sd = ignitionStatus[isi];
-                    var sdMs = new Date(sd.dateTime).getTime();
-                    if (sdMs < dayStartMs || sdMs > dayEndMs) continue;
+                    var dtStr = (sd && sd.dateTime) ? String(sd.dateTime) : "";
+                    if (dtStr.indexOf("T") < 0) continue;
+                    var sdDate = new Date(sd.dateTime);
+                    var sdMs = sdDate.getTime();
+                    if (isNaN(sdMs) || sdMs < dayStartMs || sdMs > dayEndMs) continue;
                     var ignitionOn = (sd.data != null && sd.data !== 0 && sd.data !== "0");
                     if (!ignitionOn) continue;
+                    if (sdDate.getUTCHours() === 0 && sdDate.getUTCMinutes() === 0 && sdDate.getUTCSeconds() === 0) continue;
                     startTimeInsideHomeZone = sdMs;
                     break;
                 }
-                /* Fallback: first trip start if no StatusData match */
+                /* Fallback: first trip start if no valid StatusData match */
                 if (startTimeInsideHomeZone == null && dayTrips.length > 0) {
                     var firstTripStartMs = new Date(dayTrips[0].start).getTime();
                     if (firstTripStartMs >= dayStartMs && firstTripStartMs <= dayEndMs) {
