@@ -602,6 +602,26 @@
                     shiftTimeSeconds = Math.max(0, spanSeconds - stoppedOutsideSeconds + breakCredit);
                 }
 
+                /* Trip summary data from Geotab trip history */
+                var tripStartTime = null;
+                var tripEndTime = null;
+                var tripDurationSeconds = 0;
+                if (dayTrips.length > 0) {
+                    var firstTrip = dayTrips[0];
+                    var lastTrip = dayTrips[dayTrips.length - 1];
+                    tripStartTime = formatDateTimeLocal(new Date(firstTrip.start));
+                    tripEndTime = formatDateTimeLocal(new Date(lastTrip.stop));
+                    for (var t = 0; t < dayTrips.length; t++) {
+                        var trip = dayTrips[t];
+                        var driveSec = U.getTotalSeconds(trip.drivingDuration);
+                        var idleSec = U.getTotalSeconds(trip.idlingDuration);
+                        if (driveSec === 0 && idleSec === 0 && trip.start && trip.stop) {
+                            driveSec = (new Date(trip.stop).getTime() - new Date(trip.start).getTime()) / 1000;
+                        }
+                        tripDurationSeconds += driveSec + idleSec;
+                    }
+                }
+
                 /* Summary row (first line for this vehicle/day) */
                 rowsData.push({
                     Date: dayKey,
@@ -621,6 +641,9 @@
                     Location: "",
                     InHomeZone: "",
                     ShiftTimeSeconds: shiftTimeSeconds,
+                    TripStartTime: tripStartTime || "",
+                    TripDurationSeconds: tripDurationSeconds,
+                    TripEndTime: tripEndTime || "",
                     isSummaryRow: true
                 });
 
@@ -663,6 +686,9 @@
                         Location: locationDisplay,
                         InHomeZone: stop.inHomeZone ? "Yes" : "No",
                         ShiftTimeSeconds: null,
+                        TripStartTime: "",
+                        TripDurationSeconds: null,
+                        TripEndTime: "",
                         isSummaryRow: false,
                         _locationParts: locationParts
                     });
@@ -785,7 +811,10 @@
         { key: "DurationSeconds", label: "Duration", format: "duration" },
         { key: "Location", label: "Location" },
         { key: "InHomeZone", label: "In Home\nZone" },
-        { key: "ShiftTimeSeconds", label: "Shift Time", format: "duration" }
+        { key: "ShiftTimeSeconds", label: "Shift Time", format: "duration" },
+        { key: "TripStartTime", label: "Trip Start\nTime" },
+        { key: "TripDurationSeconds", label: "Trip Duration", format: "duration" },
+        { key: "TripEndTime", label: "Trip End\nTime" }
     ];
 
     function renderPreview() {
