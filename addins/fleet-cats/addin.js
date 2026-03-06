@@ -5,7 +5,12 @@
     var apiRef = null;
     var map = null;
     var markersLayer = null;
-    var CATS = ["\uD83D\uDC31", "\uD83D\uDC08", "\uD83D\uDC08\u200D\u2B1B"]; /* 🐱 🐈 🐈‍⬛ */
+    /* Twemoji cat images for consistent display across browsers */
+    var CAT_IMAGES = [
+        "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f431.png",
+        "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f408.png",
+        "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f63a.png"
+    ];
     var DEFAULT_CENTER = [37.7749, -122.4194];
     var DEFAULT_ZOOM = 4;
 
@@ -44,20 +49,20 @@
         if (textEl) textEl.textContent = text || "Something went wrong.";
     }
 
-    function catForDevice(deviceId) {
+    function catImageForDevice(deviceId) {
         var h = 0;
         var s = String(deviceId || "");
         for (var i = 0; i < s.length; i++) {
             h = ((h << 5) - h) + s.charCodeAt(i) | 0;
         }
-        return CATS[Math.abs(h) % CATS.length];
+        return CAT_IMAGES[Math.abs(h) % CAT_IMAGES.length];
     }
 
     function createCatIcon(deviceId) {
-        var cat = catForDevice(deviceId);
+        var src = catImageForDevice(deviceId);
         return L.divIcon({
             className: "cat-marker-icon",
-            html: "<div class=\"cat-marker\" title=\"Vehicle\">" + cat + "</div>",
+            html: "<div class=\"cat-marker\"><img src=\"" + src + "\" alt=\"Vehicle\" width=\"36\" height=\"36\" /></div>",
             iconSize: [36, 36],
             iconAnchor: [18, 18]
         });
@@ -72,12 +77,18 @@
             map = null;
         }
 
-        map = L.map("map").setView(DEFAULT_CENTER, DEFAULT_ZOOM);
+        map = L.map("map", { preferCanvas: true }).setView(DEFAULT_CENTER, DEFAULT_ZOOM);
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
             attribution: "&copy; OpenStreetMap"
         }).addTo(map);
 
         markersLayer = L.layerGroup().addTo(map);
+
+        /* Force Leaflet to recalculate size (critical when container was hidden during load) */
+        setTimeout(function () {
+            if (map) map.invalidateSize();
+        }, 100);
+
         return map;
     }
 
@@ -85,6 +96,7 @@
         if (!markersLayer) return;
 
         markersLayer.clearLayers();
+        hideEmptyState();
 
         var bounds = [];
         statuses.forEach(function (status) {
@@ -107,7 +119,15 @@
             map.fitBounds(bounds, { padding: [30, 30], maxZoom: 15 });
         } else if (bounds.length === 1) {
             map.setView(bounds[0], 12);
+        } else {
+            var emptyEl = getEl("empty-state");
+            if (emptyEl) emptyEl.classList.remove("hidden");
         }
+    }
+
+    function hideEmptyState() {
+        var emptyEl = getEl("empty-state");
+        if (emptyEl) emptyEl.classList.add("hidden");
     }
 
     function escapeHtml(s) {
@@ -131,10 +151,16 @@
                     return s.latitude != null && s.longitude != null;
                 });
 
+                /* Show map section FIRST so Leaflet container has dimensions, then init */
+                showMap();
                 if (!map) initMap();
+
                 if (map) {
                     addCatMarkers(withPosition, deviceMap);
-                    showMap();
+                    if (withPosition.length === 0) {
+                        map.setView(DEFAULT_CENTER, DEFAULT_ZOOM);
+                    }
+                    map.invalidateSize();
 
                     var refreshBtn = getEl("btn-refresh");
                     if (refreshBtn) {
@@ -143,7 +169,7 @@
                         };
                     }
                 } else {
-                    showError("Could not initialize map.");
+                    showError("Could not initialize map. Ensure Leaflet is loaded.");
                 }
             }, function (err) {
                 showError("Failed to load vehicle positions: " + (err && err.message ? err.message : "Unknown error"));
@@ -157,7 +183,7 @@
         return {
             initialize: function (api, state, callback) {
                 apiRef = api;
-                initMap();
+                /* Do not init map here - container is hidden; init in focus() after showMap() */
                 if (typeof callback === "function") callback();
             },
             focus: function (api, state) {
