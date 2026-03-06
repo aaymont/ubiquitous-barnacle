@@ -1,0 +1,12 @@
+{
+  "name": "Fleet Cats",
+  "supportEmail": "https://github.com/aaymont/ubiquitous-barnacle",
+  "version": "1.0.0",
+  "items": [
+    {
+      "url": "https://aaymont.github.io/ubiquitous-barnacle/addins/fleet-cats/index.html",
+      "path": "ActivityLink/",
+      "menuName": { "en": "Fleet Cats" }
+    }
+  ]
+}
