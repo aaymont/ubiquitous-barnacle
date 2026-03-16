@@ -1,10 +1,10 @@
 {
   "name": "Zone Mileage Report",
   "supportEmail": "https://github.com/aaymont/ubiquitous-barnacle",
-  "version": "1.1.7",
+  "version": "1.1.8",
   "items": [
     {
-      "url": "https://aaymont.github.io/ubiquitous-barnacle/addins/zone-mileage-report/?v=1.1.7",
+      "url": "https://aaymont.github.io/ubiquitous-barnacle/addins/zone-mileage-report/?v=1.1.8",
       "path": "ActivityLink/",
       "menuName": { "en": "Zone Mileage Report" }
     }

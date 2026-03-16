@@ -553,9 +553,9 @@
             ];
             for (var c = 0; c < cols.length; c++) {
                 var td = document.createElement("td");
-                if (c === 0) {
-                    td.textContent = cols[c];
-                } else if (c >= 1 && c <= 4) {
+                if (c === 0 || c === 1) {
+                    td.textContent = cols[c] != null ? cols[c] : "";
+                } else if (c >= 2 && c <= 4) {
                     td.textContent = typeof cols[c] === "number" ? cols[c].toFixed(1) : "";
                 } else {
                     td.textContent = typeof cols[c] === "number" ? cols[c].toFixed(2) : "";
