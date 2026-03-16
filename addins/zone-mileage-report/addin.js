@@ -5,6 +5,7 @@
     var apiRef = null;
     var devices = [];
     var deviceNameMap = {};
+    var deviceVinMap = {};
     var lastSummary = null;
     var lastDeviceRows = [];
 
@@ -201,6 +202,7 @@
         for (var i = 0; i < devices.length; i++) {
             var d = devices[i];
             deviceNameMap[d.id] = d.name || d.serialNumber || d.id;
+            deviceVinMap[d.id] = d.vehicleIdentificationNumber || "";
             var opt = document.createElement("option");
             opt.value = d.id;
             opt.textContent = d.name || d.serialNumber || d.id;
@@ -488,6 +490,7 @@
             perDeviceRows.push({
                 deviceId: id,
                 deviceName: (nameMap && nameMap[id]) ? nameMap[id] : id,
+                vin: deviceVinMap && deviceVinMap[id] ? deviceVinMap[id] : "",
                 totalMiles: m.total * KM_TO_MILES,
                 insideMiles: m.inside * KM_TO_MILES,
                 outsideMiles: m.outside * KM_TO_MILES,
@@ -522,6 +525,7 @@
         var headerRow = document.createElement("tr");
         var headers = [
             "Vehicle",
+            "VIN",
             "Total miles",
             "Miles inside zone b2",
             "Miles outside zone b2",
@@ -540,6 +544,7 @@
             var tr = document.createElement("tr");
             var cols = [
                 row.deviceName,
+                row.vin,
                 row.totalMiles,
                 row.insideMiles,
                 row.outsideMiles,
@@ -573,6 +578,7 @@
         var data = [];
         data.push([
             "Vehicle",
+            "VIN",
             "Total miles",
             "Miles inside zone b2",
             "Miles outside zone b2",
@@ -583,6 +589,7 @@
             var r = lastDeviceRows[i];
             data.push([
                 r.deviceName,
+                r.vin || "",
                 Number(r.totalMiles.toFixed(1)),
                 Number(r.insideMiles.toFixed(1)),
                 Number(r.outsideMiles.toFixed(1)),
@@ -593,6 +600,7 @@
         var ws = XLSX.utils.aoa_to_sheet(data);
         var colWidths = [
             { wch: 24 },
+            { wch: 22 },
             { wch: 14 },
             { wch: 22 },
             { wch: 22 },
